@@ -1,0 +1,71 @@
+# Format Presets
+
+Use these presets as practical office-document formatting defaults. They are not a substitute for a user's official unit template. If the user supplies a template, prefer the template.
+
+## Formal Preset
+
+Use for 通知、请示、报告、函、纪要 and other formal 公文-style drafts.
+
+Page:
+
+- Paper: A4.
+- Margins: top 37 mm, bottom 35 mm, left 28 mm, right 26 mm.
+- Body line rhythm: fixed line spacing around 28 pt.
+
+Text:
+
+- Main title: 2号, 方正小标宋简体 when available, centered; fall back to 宋体 bold if needed.
+- Body: 3号 仿宋_GB2312, black, justified, first-line indent 2 Chinese characters.
+- First-level heading `一、`: 3号 黑体.
+- Second-level heading `（一）`: 3号 楷体_GB2312.
+- Third-level heading `1.` or `1、`: 3号 仿宋_GB2312.
+- Recipient: 3号 仿宋_GB2312, left aligned, no first-line indent, ends with full-width colon when present.
+- Attachment line: 3号 仿宋_GB2312, first-line indent 2 Chinese characters.
+- Signature/date: 3号 仿宋_GB2312, right aligned.
+
+Paragraph:
+
+- Body paragraph: first-line indent 2 characters.
+- Headings inside the body usually keep a 2-character first-line indent.
+- Paragraph spacing: 0 before/after unless the template shows otherwise.
+- Avoid decorative styles, excessive bolding, colored text, and casual Markdown-like bullets.
+
+## Brief Preset
+
+Use for internal 信息简报、会议简报、工作动态、生产经营分析会材料.
+
+Page:
+
+- Paper: A4.
+- Margins: top 25 mm, bottom 25 mm, left 28 mm, right 26 mm unless the user's template differs.
+- Keep a clean internal-office layout rather than a full red-head official-document layout.
+
+Text:
+
+- Brief name: 小二 or 2号, 宋体/小标宋, bold or strong, centered.
+- Issue number: 3号 楷体 or 仿宋, centered.
+- Publisher/date line: 3号 仿宋, left aligned or tab-aligned according to source/template.
+- Separator: thin horizontal rule if present in source/template.
+- Article title: 2号 or 小二, 宋体/小标宋, bold, centered.
+- Body: 3号 仿宋_GB2312, justified, first-line indent 2 Chinese characters.
+- First-level heading: 3号 黑体.
+- Second-level heading: 3号 楷体_GB2312.
+- Third-level heading: 3号 仿宋_GB2312.
+
+Structure:
+
+Typical internal brief order:
+
+1. Brief name
+2. Issue number
+3. Publisher and date
+4. Separator line
+5. Article title
+6. Lead paragraph
+7. Body paragraphs and numbered requirements
+
+Do not force all internal briefs into this order. Preserve the user's paragraph order unless asked.
+
+## Font Notes
+
+Chinese office documents often refer to fonts that may not be installed on every machine, such as 方正小标宋简体 or 仿宋_GB2312. It is still useful to set the requested font names in the `.docx`; Word will render the closest available font if needed. Tell the user if exact rendering depends on local font availability.

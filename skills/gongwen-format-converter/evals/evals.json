@@ -1,0 +1,20 @@
+{
+  "skill_name": "gongwen-format-converter",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我有一份 Markdown 写的内部信息简报，内容别改，帮我生成一份适合内部流转的 Word 版式，标题、期号、正文、一级标题都要像正式简报。",
+      "expected_output": "Uses the brief preset, preserves source text, generates a .docx, and reports paragraph roles without leaking full source text."
+    },
+    {
+      "id": 2,
+      "prompt": "这个 docx 内容已经定稿了，只帮我按正式公文习惯调格式：A4、页边距、标题、正文三号仿宋、一级标题黑体、二级标题楷体、首行缩进和固定行距。",
+      "expected_output": "Uses format-only mode with the formal preset, preserves text order and content, and produces a formatted .docx plus a concise report."
+    },
+    {
+      "id": 3,
+      "prompt": "我给你一份内部范文和一份新文档，范文不能外露。只学习范文的字体、字号、行距、标题层级和页面边距，把新文档套成同款格式。",
+      "expected_output": "Uses template-replication mode, extracts a style fingerprint from the template, avoids quoting template content, and formats the target document."
+    }
+  ]
+}

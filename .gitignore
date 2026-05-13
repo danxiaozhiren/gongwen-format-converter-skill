@@ -1,0 +1,13 @@
+# Temporary files generated while reading contest rules
+.tmp_rule_images/
+
+# Skill test outputs and local workspaces
+skills/*-workspace/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
