@@ -135,10 +135,27 @@ $gongwen-format-converter
 模式：模板复刻
 模板文件：D:\path\模板.docx
 目标文件：D:\path\新材料.docx
-要求：只学习模板格式，不复述模板内容。尽量复刻字体、字号、颜色、下划线、行距、缩进、标题层级和页边距。
+要求：先提取模板格式清单并列出未覆盖项，不要直接生成。确认后再套用模板。
 ```
 
 如果模板里没有某类段落或某种样式，Skill 应该先询问你是使用推荐公文/简报格式、保留目标文档原格式，还是指定自定义格式；如果你要求直接继续，默认使用对应的公文/内部简报预设并在报告中说明。
+
+模板复刻推荐流程：
+
+1. 提取模板格式清单：页面、页眉页脚、标题、正文、各级标题、颜色、下划线、行距、缩进、表格图片等。
+2. 对照目标文档，列出模板没有覆盖的格式项。
+3. 询问缺失项处理方式：使用推荐公文/简报格式、保留目标原格式、或用户自定义。
+4. 确认后生成套用模板后的 `.docx`。
+
+脚本层也支持先提取模板 profile：
+
+```powershell
+python skills\gongwen-format-converter\scripts\format_document.py `
+  --extract-template D:\path\模板.docx `
+  --target D:\path\新材料.docx `
+  --preset brief `
+  --report template_profile.json
+```
 
 ## 格式范围清单
 

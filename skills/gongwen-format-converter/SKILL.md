@@ -52,7 +52,7 @@ Infer the mode only when the user's wording is explicit:
 | --- | --- | --- |
 | Format-only | User says content is done, do not modify text, just adjust format | Formatted `.docx` and format report |
 | Format-diagnostics | User wants to inspect structure and formatting before editing, or asks what is nonstandard | Full format diagnostic report; no document changes |
-| Template-replication | User provides a sample/template document and a target document | Target `.docx` using the template's style fingerprint |
+| Template-replication | User provides a sample/template document and a target document | Template style profile first, then confirmed target `.docx` |
 
 For all modes, keep the source order of paragraphs unless the user asks to reorganize.
 
@@ -106,7 +106,22 @@ Use this priority:
 
 ## Template Replication Rules
 
-Template replication should be stricter than generic formatting. Extract and apply the template's page and paragraph style fingerprint, including:
+Template replication is a two-stage workflow. Do not apply a template immediately when important style coverage is unclear.
+
+Stage 1: extract and confirm the template profile.
+
+- Extract the template style fingerprint.
+- List the template's page setup, role styles, object/table diagnostics, and covered roles.
+- If a target document is provided, compare target roles with template roles and list missing styles.
+- Ask the user how to handle unresolved items before applying the template.
+
+Stage 2: apply the confirmed template profile.
+
+- Apply the extracted template styles to matching target roles.
+- Use the user's explicit choices for unresolved items.
+- If the user tells you to proceed without answering, use the selected `formal` or `brief` preset as fallback and report every fallback.
+
+Extract and apply the template's page and paragraph style fingerprint, including:
 
 - page margins;
 - alignment;
@@ -130,6 +145,20 @@ For decorative or ambiguous elements such as underlines, colored text, separator
 - preserve them when the template clearly uses them for the same role;
 - remove/normalize them when using the standard 公文/内部简报 fallback, because official-looking documents should avoid decorative formatting unless the unit template requires it;
 - ask before making a one-off judgment when the user's intent is unclear.
+
+Use this confirmation prompt after Stage 1:
+
+```text
+我已提取模板格式清单。模板覆盖了：[列出角色/页面/对象范围]。
+目标文档中以下格式模板未覆盖：[列出缺失角色或对象]。
+
+请选择缺失项处理方式：
+1. 使用公文/内部简报推荐格式；
+2. 保留目标文档原格式；
+3. 我指定自定义格式。
+
+确认后我再生成套用模板后的 Word。
+```
 
 ## Format Diagnostics
 
@@ -183,6 +212,7 @@ Examples:
 ```bash
 python scripts/format_document.py input.docx --output output.docx --preset formal --report report.json
 python scripts/format_document.py draft.md --output formatted.docx --preset brief --report report.json
+python scripts/format_document.py --extract-template sample.docx --target target.docx --preset brief --report template_profile.json
 python scripts/format_document.py target.docx --template sample.docx --output styled.docx --report report.json
 python scripts/format_document.py --stdin --input-name draft.md --output formatted.docx --preset brief
 python scripts/format_document.py input.docx --diagnose-only --report diagnostics.json
@@ -197,6 +227,7 @@ Behavior:
 - Do not include full paragraph text in the report by default.
 - Use `--include-text-in-report` only for non-sensitive samples or when the user explicitly asks.
 - In template mode, report any roles that fell back to a preset because the template did not contain a matching style.
+- In template replication work, prefer `--extract-template` first so the user can review covered styles and unresolved items before applying.
 
 ## Deliverable Response
 

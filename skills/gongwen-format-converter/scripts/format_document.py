@@ -590,8 +590,9 @@ def build_format_diagnostics(
 def extract_template_profile(template_path: Path, preset: str) -> dict[str, Any]:
     document = Document(str(template_path))
     items = document_items(document)
-    roles, _ = classify_items(items, preset)
-    profile: dict[str, Any] = {"roles": {}, "page": {}}
+    roles, counts = classify_items(items, preset)
+    diagnostics = build_format_diagnostics(document, items, roles, preset)
+    profile: dict[str, Any] = {"roles": {}, "page": {}, "role_counts": counts, "diagnostics": diagnostics}
     if document.sections:
         section = document.sections[0]
         profile["page"] = {
@@ -609,6 +610,96 @@ def extract_template_profile(template_path: Path, preset: str) -> dict[str, Any]
             if style:
                 profile["roles"][role] = style
     return profile
+
+
+def build_template_profile_report(
+    *,
+    template_path: Path,
+    template_profile: dict[str, Any],
+    preset: str,
+    target_items: list[ParagraphItem] | None,
+    target_roles: list[dict[str, Any]] | None,
+    include_text: bool,
+) -> dict[str, Any]:
+    template_roles = set(template_profile.get("roles", {}).keys())
+    target_role_counts: dict[str, int] = {}
+    missing_target_roles: list[str] = []
+    target_paragraphs: list[dict[str, Any]] = []
+
+    if target_items is not None and target_roles is not None:
+        for role_info in target_roles:
+            role = role_info["role"]
+            target_role_counts[role] = target_role_counts.get(role, 0) + 1
+        missing_target_roles = sorted(set(target_role_counts) - template_roles)
+        target_paragraphs = target_roles
+        if include_text:
+            enriched = []
+            for role, item in zip(target_roles, target_items):
+                row = dict(role)
+                row["text"] = item.text
+                enriched.append(row)
+            target_paragraphs = enriched
+
+    unresolved_items = []
+    for role in missing_target_roles:
+        unresolved_items.append(
+            {
+                "role": role,
+                "reason": "Target document contains this role, but the template did not provide a matching style.",
+                "recommended_options": [
+                    "Use the selected preset fallback",
+                    "Preserve the target document's existing formatting",
+                    "Specify a custom style for this role",
+                ],
+            }
+        )
+
+    if target_items is None:
+        unresolved_items.extend(
+            [
+                {
+                    "role": "target roles",
+                    "reason": "No target document was provided during template extraction.",
+                    "recommended_options": [
+                        "Provide a target document for coverage analysis",
+                        "Proceed later and use preset fallback for missing roles",
+                    ],
+                },
+                {
+                    "role": "tables/images/page numbers",
+                    "reason": "Template object styles can be listed, but target-specific treatment requires target inspection.",
+                    "recommended_options": [
+                        "Use official/internal-brief recommendation",
+                        "Preserve target formatting",
+                        "Specify custom handling",
+                    ],
+                },
+            ]
+        )
+
+    return {
+        "mode": "template-profile",
+        "preset": preset,
+        "template": str(template_path),
+        "template_style_profile": {
+            "page": template_profile.get("page", {}),
+            "role_counts": template_profile.get("role_counts", {}),
+            "role_styles": template_profile.get("roles", {}),
+            "diagnostics": template_profile.get("diagnostics"),
+        },
+        "target_coverage": {
+            "target_role_counts": target_role_counts,
+            "missing_target_roles": missing_target_roles,
+            "target_paragraphs": target_paragraphs,
+        },
+        "confirmation_required": bool(unresolved_items),
+        "unresolved_items": unresolved_items,
+        "recommended_next_step": (
+            "Ask the user how to handle unresolved items before applying the template. "
+            "If the user wants to proceed, use the selected preset as fallback and report it."
+        ),
+        "content_policy": "Template and target full text are omitted unless include_text_in_report is enabled.",
+    }
 
 
 def classify_items(items: list[ParagraphItem], preset: str) -> tuple[list[dict[str, Any]], dict[str, int]]:
@@ -747,6 +838,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", help="Output .docx path")
     parser.add_argument("--preset", choices=sorted(PRESETS.keys()), default="brief")
     parser.add_argument("--template", help="Optional .docx template to replicate")
+    parser.add_argument("--extract-template", help="Only extract a .docx template style profile; do not format output")
+    parser.add_argument("--target", help="Optional target file used with --extract-template for coverage analysis")
     parser.add_argument("--report", help="Optional JSON report path")
     parser.add_argument("--identify-only", action="store_true", help="Diagnose structure and formatting; do not save .docx")
     parser.add_argument("--diagnose-only", action="store_true", help="Alias for --identify-only")
@@ -756,6 +849,33 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if args.extract_template:
+        template_path = Path(args.extract_template).resolve()
+        template_profile = extract_template_profile(template_path, args.preset)
+        target_items = None
+        target_roles = None
+        if args.target:
+            target_path = Path(args.target).resolve()
+            target_suffix = target_path.suffix.lower()
+            if target_suffix == ".docx":
+                target_document = Document(str(target_path))
+                target_items = document_items(target_document)
+            elif target_suffix in {".md", ".markdown", ".txt", ""}:
+                target_items, _ = read_plain_or_markdown(target_path, False, target_path.name)
+            else:
+                raise SystemExit(f"Unsupported target type: {target_suffix}. Use .docx, .md, .markdown, or .txt.")
+            target_roles, _ = classify_items(target_items, args.preset)
+        report = build_template_profile_report(
+            template_path=template_path,
+            template_profile=template_profile,
+            preset=args.preset,
+            target_items=target_items,
+            target_roles=target_roles,
+            include_text=args.include_text_in_report,
+        )
+        write_report(report, Path(args.report).resolve() if args.report else None)
+        return 0
+
     if not args.stdin and not args.input:
         raise SystemExit("Provide an input file or use --stdin.")
 
