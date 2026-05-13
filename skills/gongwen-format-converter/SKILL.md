@@ -13,7 +13,7 @@ Use this skill for:
 
 - Formatting an existing `.docx` while preserving its text.
 - Converting `.md`, `.txt`, or pasted text into a formatted `.docx`.
-- Identifying paragraph roles before formatting.
+- Diagnosing the whole document's structure and formatting before making changes.
 - Replicating the layout of an internal template without exposing the template content.
 - Producing a format-check report for 公文 or internal brief materials.
 
@@ -36,7 +36,7 @@ Use this short clarification:
 ```text
 这份材料我可以按三种方式处理，你想选哪一种？
 1. 仅格式化：内容不改，只调整字体、字号、行距、缩进、页边距、标题层级等。
-2. 格式识别：先判断每段是标题、期号、正文、一级标题、落款等，不直接改文档。
+2. 格式诊断：不改文档，完整识别页面、页眉页脚、段落角色、字体字号、颜色/下划线、缩进、行距、表格图片等格式状态。
 3. 模板复刻：用一份范文/模板的格式去套另一份文档，只学习样式，不复述模板内容。
 
 如果你不确定，我建议选 1「仅格式化」。
@@ -45,13 +45,13 @@ Use this short clarification:
 Infer the mode only when the user's wording is explicit:
 
 - "内容不要改/只调格式/套公文格式" means `Format-only`.
-- "先看看结构/识别段落/哪些是标题正文" means `Role-identification`.
+- "先看看格式/诊断格式/识别段落和样式/哪些不规范" means `Format-diagnostics`.
 - "参考这份模板/复刻格式/套成同款" plus a template file means `Template-replication`.
 
 | Mode | Use When | Main Output |
 | --- | --- | --- |
 | Format-only | User says content is done, do not modify text, just adjust format | Formatted `.docx` and format report |
-| Role-identification | Structure is messy or user wants you to check what each paragraph is | Paragraph role report, then formatted `.docx` if requested |
+| Format-diagnostics | User wants to inspect structure and formatting before editing, or asks what is nonstandard | Full format diagnostic report; no document changes |
 | Template-replication | User provides a sample/template document and a target document | Target `.docx` using the template's style fingerprint |
 
 For all modes, keep the source order of paragraphs unless the user asks to reorganize.
@@ -131,6 +131,26 @@ For decorative or ambiguous elements such as underlines, colored text, separator
 - remove/normalize them when using the standard 公文/内部简报 fallback, because official-looking documents should avoid decorative formatting unless the unit template requires it;
 - ask before making a one-off judgment when the user's intent is unclear.
 
+## Format Diagnostics
+
+Read `references/official-format-scope.md` and `references/role-detection.md` before diagnosing formal documents. Diagnostics are broader than role detection: they should inspect the whole document's current formatting without modifying it.
+
+Report these areas when available:
+
+- page setup: paper size, orientation, margins, section count, differences from the selected preset;
+- headers and footers: whether header/footer text exists and whether page-number handling needs confirmation;
+- official/internal structure: likely 版头/主体/版记 or internal brief header components;
+- paragraph roles: title, issue number, metadata, article title, recipient, body, headings, attachment, signature, date;
+- typography: font name, size, bold, italic, underline, color by role and style variant;
+- paragraph layout: first-line indent, left/right indent, line spacing, paragraph spacing, alignment;
+- hierarchy consistency: `一、`, `（一）`, `1.`, `（1）`;
+- objects: tables, images, seals, text boxes, separators where detectable;
+- consistency: roles that have multiple style variants;
+- differences from `formal` or `brief` preset;
+- unclear items that need user confirmation.
+
+Do not quote full paragraph text by default. Use paragraph indexes, lengths, hashes, role counts, and style summaries.
+
 ## Paragraph Role Detection
 
 Read `references/role-detection.md` before changing detection logic or when a document is ambiguous.
@@ -165,13 +185,14 @@ python scripts/format_document.py input.docx --output output.docx --preset forma
 python scripts/format_document.py draft.md --output formatted.docx --preset brief --report report.json
 python scripts/format_document.py target.docx --template sample.docx --output styled.docx --report report.json
 python scripts/format_document.py --stdin --input-name draft.md --output formatted.docx --preset brief
-python scripts/format_document.py input.docx --identify-only --report roles.json
+python scripts/format_document.py input.docx --diagnose-only --report diagnostics.json
+python scripts/format_document.py input.docx --identify-only --report diagnostics.json
 ```
 
 Behavior:
 
 - Default to preserving text.
-- Generate a `.docx` unless `--identify-only` is used.
+- Generate a `.docx` unless `--diagnose-only` / `--identify-only` is used.
 - Generate a JSON report when `--report` is provided.
 - Do not include full paragraph text in the report by default.
 - Use `--include-text-in-report` only for non-sensitive samples or when the user explicitly asks.

@@ -10,6 +10,7 @@ default.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import hashlib
 import json
 import re
@@ -57,6 +58,12 @@ def pt_value(value: Any) -> float | None:
 def mm_value(value: Any) -> float | None:
     if value is None:
         return None
+
+
+def bool_or_none(value: Any) -> bool | None:
+    if value is None:
+        return None
+    return bool(value)
     try:
         return round(float(value.mm), 2)
     except AttributeError:
@@ -386,6 +393,200 @@ def extract_paragraph_style(paragraph: Any) -> dict[str, Any]:
     return {k: v for k, v in style.items() if v is not None}
 
 
+def compact_style(style: dict[str, Any]) -> dict[str, Any]:
+    keys = [
+        "font",
+        "size",
+        "bold",
+        "italic",
+        "underline",
+        "color",
+        "align",
+        "first_indent",
+        "left_indent",
+        "right_indent",
+        "line",
+        "space_before",
+        "space_after",
+    ]
+    return {key: style.get(key) for key in keys if style.get(key) is not None}
+
+
+def style_signature(style: dict[str, Any]) -> str:
+    return json.dumps(compact_style(style), ensure_ascii=False, sort_keys=True)
+
+
+def page_diagnostics(document: Any, preset: str) -> dict[str, Any]:
+    sections = []
+    expected = PRESETS[preset]["_page"]
+    for idx, section in enumerate(document.sections):
+        page = {
+            "index": idx + 1,
+            "width_mm": mm_value(section.page_width),
+            "height_mm": mm_value(section.page_height),
+            "top_margin_mm": mm_value(section.top_margin),
+            "bottom_margin_mm": mm_value(section.bottom_margin),
+            "left_margin_mm": mm_value(section.left_margin),
+            "right_margin_mm": mm_value(section.right_margin),
+            "header_distance_mm": mm_value(section.header_distance),
+            "footer_distance_mm": mm_value(section.footer_distance),
+            "orientation": "landscape"
+            if section.page_width and section.page_height and section.page_width > section.page_height
+            else "portrait",
+        }
+        differences = []
+        for key, expected_key in [
+            ("top_margin_mm", "top_mm"),
+            ("bottom_margin_mm", "bottom_mm"),
+            ("left_margin_mm", "left_mm"),
+            ("right_margin_mm", "right_mm"),
+        ]:
+            value = page.get(key)
+            exp = expected.get(expected_key)
+            if value is not None and exp is not None and abs(value - exp) > 1:
+                differences.append({"field": key, "actual": value, "expected": exp})
+        if page["width_mm"] and page["height_mm"]:
+            if abs(page["width_mm"] - 210) > 2 or abs(page["height_mm"] - 297) > 2:
+                differences.append({"field": "paper", "actual": f"{page['width_mm']}x{page['height_mm']}mm", "expected": "A4 210x297mm"})
+        page["differences_from_preset"] = differences
+        sections.append(page)
+    return {"section_count": len(sections), "sections": sections}
+
+
+def header_footer_diagnostics(document: Any) -> dict[str, Any]:
+    sections = []
+    for idx, section in enumerate(document.sections):
+        header_text = " ".join(p.text.strip() for p in section.header.paragraphs if p.text.strip())
+        footer_text = " ".join(p.text.strip() for p in section.footer.paragraphs if p.text.strip())
+        sections.append(
+            {
+                "index": idx + 1,
+                "has_header_text": bool(header_text),
+                "has_footer_text": bool(footer_text),
+                "header_paragraph_count": len([p for p in section.header.paragraphs if p.text.strip()]),
+                "footer_paragraph_count": len([p for p in section.footer.paragraphs if p.text.strip()]),
+            }
+        )
+    return {"sections": sections}
+
+
+def table_diagnostics(document: Any) -> dict[str, Any]:
+    tables = []
+    for idx, table in enumerate(document.tables):
+        sample_styles = []
+        for row in table.rows[:2]:
+            for cell in row.cells[:3]:
+                for p in cell.paragraphs:
+                    if p.text.strip():
+                        sample_styles.append(compact_style(extract_paragraph_style(p)))
+                        break
+        tables.append(
+            {
+                "index": idx + 1,
+                "rows": len(table.rows),
+                "columns": len(table.columns),
+                "sample_style_count": len(sample_styles),
+                "sample_styles": sample_styles[:3],
+            }
+        )
+    return {"table_count": len(tables), "tables": tables}
+
+
+def object_diagnostics(document: Any) -> dict[str, Any]:
+    inline_shapes = getattr(document, "inline_shapes", [])
+    return {
+        "inline_shape_count": len(inline_shapes),
+        "image_or_object_note": "Inline shapes may include images, seals, charts, or embedded objects; inspect manually before moving or resizing.",
+    }
+
+
+def role_style_summary(
+    items: list[ParagraphItem],
+    roles: list[dict[str, Any]],
+    preset: str,
+) -> dict[str, Any]:
+    preset_styles = PRESETS[preset]
+    summary: dict[str, Any] = {}
+    for item, role_info in zip(items, roles):
+        paragraph = item.paragraph
+        if paragraph is None:
+            continue
+        role = role_info["role"]
+        style = compact_style(extract_paragraph_style(paragraph))
+        bucket = summary.setdefault(role, {"count": 0, "style_variants": Counter(), "samples": []})
+        bucket["count"] += 1
+        bucket["style_variants"][style_signature(style)] += 1
+        if len(bucket["samples"]) < 3:
+            expected = compact_style(preset_styles.get(role, preset_styles["body"]))
+            diffs = []
+            for key, exp in expected.items():
+                actual = style.get(key)
+                if actual is not None and exp is not None and actual != exp:
+                    diffs.append({"field": key, "actual": actual, "expected": exp})
+            bucket["samples"].append(
+                {
+                    "paragraph_index": role_info["index"],
+                    "length": role_info["length"],
+                    "hash": role_info["hash"],
+                    "style": style,
+                    "differences_from_preset": diffs,
+                }
+            )
+
+    normalized: dict[str, Any] = {}
+    for role, data in summary.items():
+        variants = [
+            {"count": count, "style": json.loads(signature)}
+            for signature, count in data["style_variants"].most_common()
+        ]
+        normalized[role] = {
+            "count": data["count"],
+            "style_variant_count": len(variants),
+            "style_variants": variants[:5],
+            "samples": data["samples"],
+        }
+    return normalized
+
+
+def build_format_diagnostics(
+    document: Any,
+    items: list[ParagraphItem],
+    roles: list[dict[str, Any]],
+    preset: str,
+) -> dict[str, Any]:
+    role_summary = role_style_summary(items, roles, preset)
+    warnings = []
+    inconsistent_roles = [
+        role for role, data in role_summary.items() if data.get("style_variant_count", 0) > 1
+    ]
+    if inconsistent_roles:
+        warnings.append("Style variants detected within roles: " + ", ".join(sorted(inconsistent_roles)))
+    if document.tables:
+        warnings.append("Tables detected; review table borders, widths, and header rows manually if strict formatting is required.")
+    if getattr(document, "inline_shapes", []):
+        warnings.append("Images or inline objects detected; preserve seals/images unless the user explicitly requests repositioning.")
+
+    return {
+        "page": page_diagnostics(document, preset),
+        "headers_footers": header_footer_diagnostics(document),
+        "role_style_summary": role_summary,
+        "tables": table_diagnostics(document),
+        "objects": object_diagnostics(document),
+        "diagnostic_warnings": warnings,
+        "diagnostic_scope": [
+            "page setup",
+            "headers and footers",
+            "paragraph roles",
+            "font family and size",
+            "bold italic underline color",
+            "indentation spacing alignment",
+            "heading hierarchy",
+            "tables",
+            "inline images or objects",
+        ],
+    }
+
+
 def extract_template_profile(template_path: Path, preset: str) -> dict[str, Any]:
     document = Document(str(template_path))
     items = document_items(document)
@@ -494,6 +695,7 @@ def build_report(
     output: Path | None,
     template_used: str | None,
     style_notes: list[str],
+    diagnostics: dict[str, Any] | None,
     include_text: bool,
     items: list[ParagraphItem],
 ) -> dict[str, Any]:
@@ -511,6 +713,8 @@ def build_report(
     if template_used:
         warnings.append("Template replication used style fingerprints only; substantive template text was not reported.")
     warnings.extend(style_notes)
+    if diagnostics:
+        warnings.extend(diagnostics.get("diagnostic_warnings", []))
     return {
         "source": source_name,
         "mode": mode,
@@ -522,6 +726,7 @@ def build_report(
         "paragraphs": paragraph_reports,
         "warnings": warnings,
         "style_notes": style_notes,
+        "format_diagnostics": diagnostics,
         "content_policy": "Full paragraph text is omitted unless include_text_in_report is enabled.",
     }
 
@@ -543,7 +748,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--preset", choices=sorted(PRESETS.keys()), default="brief")
     parser.add_argument("--template", help="Optional .docx template to replicate")
     parser.add_argument("--report", help="Optional JSON report path")
-    parser.add_argument("--identify-only", action="store_true", help="Only classify paragraph roles; do not save .docx")
+    parser.add_argument("--identify-only", action="store_true", help="Diagnose structure and formatting; do not save .docx")
+    parser.add_argument("--diagnose-only", action="store_true", help="Alias for --identify-only")
     parser.add_argument("--include-text-in-report", action="store_true", help="Include full paragraph text in JSON report")
     return parser.parse_args()
 
@@ -573,15 +779,18 @@ def main() -> int:
         template_profile = extract_template_profile(template_path, args.preset)
         template_used = str(template_path)
 
-    output_path = None if args.identify_only else Path(args.output).resolve() if args.output else default_output_path(input_path, args.input_name).resolve()
+    diagnose_only = args.identify_only or args.diagnose_only
+    output_path = None if diagnose_only else Path(args.output).resolve() if args.output else default_output_path(input_path, args.input_name).resolve()
 
-    if args.identify_only:
+    if diagnose_only:
         roles, counts = classify_items(items, args.preset)
         style_notes = []
-        mode = "identify-only"
+        diagnostics = build_format_diagnostics(document, items, roles, args.preset)
+        mode = "diagnose-only"
     else:
         roles, counts, style_notes = format_document(document, items, args.preset, template_profile)
         document.save(str(output_path))
+        diagnostics = None
         mode = "template-replication" if template_profile else "format-only"
 
     report = build_report(
@@ -593,10 +802,11 @@ def main() -> int:
         output=output_path,
         template_used=template_used,
         style_notes=style_notes,
+        diagnostics=diagnostics,
         include_text=args.include_text_in_report,
         items=items,
     )
-    if args.report or args.identify_only:
+    if args.report or diagnose_only:
         write_report(report, Path(args.report).resolve() if args.report else None)
     return 0
 
