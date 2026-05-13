@@ -91,7 +91,9 @@ When role detection is uncertain:
 Template replication should extract:
 
 - Page margins and paper size.
-- Representative font name, size, bold, alignment, first-line indent, and line spacing by detected role.
+- Representative font name, size, bold, italic, underline, font color, alignment, first-line indent, left/right indent, paragraph spacing, and line spacing by detected role.
 - Header-like sequence for internal briefs.
 
 It should not extract or report full template text by default.
+
+If the target document has roles not found in the template, mark those roles as fallback candidates. Prefer asking the user whether to use preset formatting, preserve target formatting, or define a custom style. If no confirmation is possible, use the relevant 公文/内部简报 preset and report the fallback.

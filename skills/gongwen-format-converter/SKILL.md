@@ -29,7 +29,24 @@ Treat all user-provided 公文, meeting, production, operating, personnel, finan
 
 ## Mode Selection
 
-Ask only when the mode is unclear. Otherwise infer the mode from the user's request.
+If the user provides only an article/file and the requested operation is unclear, stop and ask them to choose a mode before processing. This matters because formatting, structure diagnosis, and template replication make different assumptions about what may be changed.
+
+Use this short clarification:
+
+```text
+这份材料我可以按三种方式处理，你想选哪一种？
+1. 仅格式化：内容不改，只调整字体、字号、行距、缩进、页边距、标题层级等。
+2. 格式识别：先判断每段是标题、期号、正文、一级标题、落款等，不直接改文档。
+3. 模板复刻：用一份范文/模板的格式去套另一份文档，只学习样式，不复述模板内容。
+
+如果你不确定，我建议选 1「仅格式化」。
+```
+
+Infer the mode only when the user's wording is explicit:
+
+- "内容不要改/只调格式/套公文格式" means `Format-only`.
+- "先看看结构/识别段落/哪些是标题正文" means `Role-identification`.
+- "参考这份模板/复刻格式/套成同款" plus a template file means `Template-replication`.
 
 | Mode | Use When | Main Output |
 | --- | --- | --- |
@@ -61,6 +78,33 @@ Default presets:
 - `brief`: internal information brief style, suitable for 信息简报、会议简报、工作动态、生产经营分析会材料.
 
 If the user provides a template, prefer template replication over generic presets.
+
+## Template Replication Rules
+
+Template replication should be stricter than generic formatting. Extract and apply the template's page and paragraph style fingerprint, including:
+
+- page margins;
+- alignment;
+- first-line, left, and right indentation;
+- line spacing and paragraph spacing;
+- font name and font size;
+- bold, italic, underline;
+- font color when explicitly set;
+- representative role styles such as title, issue number, metadata, article title, body, and numbered headings.
+
+If the target document contains a role that has no matching role in the template, do not silently invent a template style. Ask the user whether to:
+
+1. use the recommended 公文/内部简报 preset for that missing role;
+2. preserve the target document's existing formatting for that role;
+3. specify a custom style.
+
+If the user wants you to continue without confirmation, choose the relevant preset (`formal` or `brief`) as the fallback and disclose this in the report.
+
+For decorative or ambiguous elements such as underlines, colored text, separators, or unusual spacing:
+
+- preserve them when the template clearly uses them for the same role;
+- remove/normalize them when using the standard 公文/内部简报 fallback, because official-looking documents should avoid decorative formatting unless the unit template requires it;
+- ask before making a one-off judgment when the user's intent is unclear.
 
 ## Paragraph Role Detection
 
@@ -106,6 +150,7 @@ Behavior:
 - Generate a JSON report when `--report` is provided.
 - Do not include full paragraph text in the report by default.
 - Use `--include-text-in-report` only for non-sensitive samples or when the user explicitly asks.
+- In template mode, report any roles that fell back to a preset because the template did not contain a matching style.
 
 ## Deliverable Response
 

@@ -14,7 +14,12 @@
     {
       "id": 3,
       "prompt": "我给你一份内部范文和一份新文档，范文不能外露。只学习范文的字体、字号、行距、标题层级和页面边距，把新文档套成同款格式。",
-      "expected_output": "Uses template-replication mode, extracts a style fingerprint from the template, avoids quoting template content, and formats the target document."
+      "expected_output": "Uses template-replication mode, extracts a style fingerprint from the template including color/underline/italic when present, avoids quoting template content, reports missing-role fallbacks, and formats the target document."
+    },
+    {
+      "id": 4,
+      "prompt": "我发你一篇文章，帮我处理一下。",
+      "expected_output": "Does not guess the operation. Asks the user to choose among format-only, role-identification, and template-replication, recommending format-only if unsure."
     }
   ]
 }

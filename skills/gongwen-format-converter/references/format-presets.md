@@ -29,6 +29,7 @@ Paragraph:
 - Headings inside the body usually keep a 2-character first-line indent.
 - Paragraph spacing: 0 before/after unless the template shows otherwise.
 - Avoid decorative styles, excessive bolding, colored text, and casual Markdown-like bullets.
+- Use black text by default. Remove decorative underline, italic, and arbitrary color unless the user or an official template requires them.
 
 ## Brief Preset
 
@@ -51,6 +52,7 @@ Text:
 - First-level heading: 3号 黑体.
 - Second-level heading: 3号 楷体_GB2312.
 - Third-level heading: 3号 仿宋_GB2312.
+- Use black text by default. Keep separator lines only when they are part of the brief header or source/template structure.
 
 Structure:
 
@@ -69,3 +71,14 @@ Do not force all internal briefs into this order. Preserve the user's paragraph 
 ## Font Notes
 
 Chinese office documents often refer to fonts that may not be installed on every machine, such as 方正小标宋简体 or 仿宋_GB2312. It is still useful to set the requested font names in the `.docx`; Word will render the closest available font if needed. Tell the user if exact rendering depends on local font availability.
+
+## Template Fallback Policy
+
+When a template does not contain a comparable role, prefer asking the user what to do. If the user asks to proceed, apply the closest preset role:
+
+- Missing title-like style: use `main_title` or `article_title` from the chosen preset.
+- Missing numbered heading style: use the corresponding `heading_1`, `heading_2`, or `heading_3` preset.
+- Missing body style: use preset body formatting.
+- Missing decorative detail such as underline or color: normalize to standard black, no underline, no italic unless the template clearly used that detail for the same role.
+
+Always mention fallback decisions in the report so the user can decide whether to rerun with custom instructions.

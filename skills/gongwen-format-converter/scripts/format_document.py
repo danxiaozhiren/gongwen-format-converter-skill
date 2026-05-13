@@ -23,7 +23,7 @@ from docx.enum.section import WD_SECTION_START
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Mm, Pt
+from docx.shared import Mm, Pt, RGBColor
 
 
 CHINESE_NUM = "一二三四五六七八九十"
@@ -216,6 +216,10 @@ def apply_style(paragraph: Any, style: dict[str, Any]) -> None:
     align = style.get("align")
     if align in ALIGNMENTS:
         paragraph.alignment = ALIGNMENTS[align]
+    if "left_indent" in style:
+        fmt.left_indent = Pt(style["left_indent"])
+    if "right_indent" in style:
+        fmt.right_indent = Pt(style["right_indent"])
     if "first_indent" in style:
         fmt.first_line_indent = Pt(style["first_indent"])
     if "space_before" in style:
@@ -233,11 +237,23 @@ def apply_style(paragraph: Any, style: dict[str, Any]) -> None:
     font = style.get("font", "仿宋_GB2312")
     size = style.get("size", 16)
     bold = style.get("bold")
+    italic = style.get("italic", False)
+    underline = style.get("underline", False)
+    color = style.get("color", "000000")
     for run in paragraph.runs:
         set_east_asia_font(run, font)
         run.font.size = Pt(size)
         if bold is not None:
             run.font.bold = bool(bold)
+        if italic is not None:
+            run.font.italic = bool(italic)
+        if underline is not None:
+            run.font.underline = bool(underline)
+        if color:
+            try:
+                run.font.color.rgb = RGBColor.from_string(str(color).replace("#", ""))
+            except ValueError:
+                pass
 
 
 def apply_page_setup(document: Any, page_style: dict[str, Any]) -> None:
@@ -338,6 +354,10 @@ def extract_paragraph_style(paragraph: Any) -> dict[str, Any]:
     if paragraph.alignment is not None:
         reverse = {value: key for key, value in ALIGNMENTS.items()}
         style["align"] = reverse.get(paragraph.alignment)
+    if fmt.left_indent is not None:
+        style["left_indent"] = pt_value(fmt.left_indent)
+    if fmt.right_indent is not None:
+        style["right_indent"] = pt_value(fmt.right_indent)
     if fmt.first_line_indent is not None:
         style["first_indent"] = pt_value(fmt.first_line_indent)
     if fmt.line_spacing is not None:
@@ -356,6 +376,12 @@ def extract_paragraph_style(paragraph: Any) -> dict[str, Any]:
                 style["size"] = pt_value(run.font.size)
             if run.font.bold is not None:
                 style["bold"] = bool(run.font.bold)
+            if run.font.italic is not None:
+                style["italic"] = bool(run.font.italic)
+            if run.font.underline is not None:
+                style["underline"] = bool(run.font.underline)
+            if run.font.color is not None and run.font.color.rgb is not None:
+                style["color"] = str(run.font.color.rgb)
             break
     return {k: v for k, v in style.items() if v is not None}
 
@@ -416,7 +442,7 @@ def format_document(
     items: list[ParagraphItem],
     preset: str,
     template_profile: dict[str, Any] | None,
-) -> tuple[list[dict[str, Any]], dict[str, int]]:
+) -> tuple[list[dict[str, Any]], dict[str, int], list[str]]:
     preset_styles = PRESETS[preset]
     page_style = dict(preset_styles["_page"])
     if template_profile and template_profile.get("page"):
@@ -424,6 +450,7 @@ def format_document(
     apply_page_setup(document, page_style)
 
     roles, counts = classify_items(items, preset)
+    template_fallback_roles: set[str] = set()
     for item, info in zip(items, roles):
         paragraph = item.paragraph
         if paragraph is None:
@@ -433,12 +460,22 @@ def format_document(
         template_style = None
         if template_profile:
             template_style = template_profile.get("roles", {}).get(role)
+            if not template_style:
+                template_fallback_roles.add(role)
         apply_style(paragraph, merge_style(base_style, template_style))
 
     for paragraph in iter_table_paragraphs(document):
         if paragraph.text.strip():
             apply_style(paragraph, preset_styles["body"])
-    return roles, counts
+
+    notes = []
+    if template_fallback_roles:
+        notes.append(
+            "Template did not include matching styles for roles: "
+            + ", ".join(sorted(template_fallback_roles))
+            + f"; used the {preset} preset as the fallback."
+        )
+    return roles, counts, notes
 
 
 def default_output_path(input_path: Path | None, input_name: str) -> Path:
@@ -456,6 +493,7 @@ def build_report(
     counts: dict[str, int],
     output: Path | None,
     template_used: str | None,
+    style_notes: list[str],
     include_text: bool,
     items: list[ParagraphItem],
 ) -> dict[str, Any]:
@@ -472,6 +510,7 @@ def build_report(
         warnings.append("Some title-like paragraphs need human confirmation.")
     if template_used:
         warnings.append("Template replication used style fingerprints only; substantive template text was not reported.")
+    warnings.extend(style_notes)
     return {
         "source": source_name,
         "mode": mode,
@@ -482,6 +521,7 @@ def build_report(
         "role_counts": counts,
         "paragraphs": paragraph_reports,
         "warnings": warnings,
+        "style_notes": style_notes,
         "content_policy": "Full paragraph text is omitted unless include_text_in_report is enabled.",
     }
 
@@ -537,9 +577,10 @@ def main() -> int:
 
     if args.identify_only:
         roles, counts = classify_items(items, args.preset)
+        style_notes = []
         mode = "identify-only"
     else:
-        roles, counts = format_document(document, items, args.preset, template_profile)
+        roles, counts, style_notes = format_document(document, items, args.preset, template_profile)
         document.save(str(output_path))
         mode = "template-replication" if template_profile else "format-only"
 
@@ -551,6 +592,7 @@ def main() -> int:
         counts=counts,
         output=output_path,
         template_used=template_used,
+        style_notes=style_notes,
         include_text=args.include_text_in_report,
         items=items,
     )
