@@ -70,6 +70,8 @@ The final deliverable should normally be `.docx`, because Markdown cannot expres
 
 ## Formatting Presets
 
+Read `references/official-format-scope.md` first for formal 公文 work or whenever the user asks for "strict", "official", "规范", "GB/T 9704", or "党政机关公文格式". This reference defines the official format scope and the priority order for user instructions, official templates, presets, and fallback decisions.
+
 Read `references/format-presets.md` when choosing or explaining formatting details.
 
 Default presets:
@@ -78,6 +80,29 @@ Default presets:
 - `brief`: internal information brief style, suitable for 信息简报、会议简报、工作动态、生产经营分析会材料.
 
 If the user provides a template, prefer template replication over generic presets.
+
+## Format Plan Confirmation
+
+Before changing a document in format-only mode, provide a concise format plan unless the user has already provided exact styles and asked you to proceed immediately. The plan should list the specific formatting range, not just say "format the document."
+
+Include:
+
+- format source: explicit user rules, user template, `formal` official-document preset, or `brief` internal-brief preset;
+- page setup: paper, margins, orientation, page-number policy;
+- official/document elements: title, recipient, body, attachments, signature/date, notes, copy/printing area when applicable;
+- typography: fonts, sizes, bold/italic/underline/color for title, body, and heading levels;
+- paragraph layout: first-line indent, left/right indent, line spacing, paragraph spacing, alignment;
+- hierarchy and numbering: `一、`, `（一）`, `1.`, `（1）`;
+- objects: tables, images, seals, headers/footers, separators;
+- unclear items and fallback choice.
+
+Use this priority:
+
+1. User-specified formatting overrides everything.
+2. A supplied official/unit template overrides built-in presets.
+3. Formal 公文 uses the official-scope/formal preset.
+4. Internal briefs use the brief preset but must be described as internal-office convention, not official GB/T compliance.
+5. Missing or ambiguous items require a question; if the user says to proceed, use the closest preset and report the fallback.
 
 ## Template Replication Rules
 
