@@ -19,9 +19,19 @@ Scope of `GB/T 9704-2012`:
 
 Do not present internal brief conventions as official law or mandatory GB/T rules. Internal briefs may refer to these rules for clean office-document presentation.
 
+## Existing-Content Application Rule
+
+Use official sources as formatting guidance for existing content and objects only.
+
+- Do not add, rewrite, delete, reorder, or infer substantive content.
+- Do not create missing official-document elements such as 主送机关, 发文字号, 签发人, 附件说明, 署名, 日期, 印章, 抄送机关, 印发机关, 版记, or 页码 unless the user explicitly asks for that separate addition.
+- If an official element is absent, report it as `not_detected` / `not_processed`.
+- If an existing element is ambiguous, mark it `needs_review` before applying risky formatting.
+- Use `formatted`, `preserved`, `diagnosed_only`, `not_detected`, `unsupported`, and `needs_review` to make coverage transparent.
+
 ## Official Element Scope
 
-When formatting a formal official document, check for these elements from the official-document processing regulation:
+When formatting a formal official document, detect these elements from the official-document processing regulation and apply formatting only when they already exist:
 
 | Element | Formatting Role |
 | --- | --- |
@@ -44,11 +54,11 @@ When formatting a formal official document, check for these elements from the of
 | 印发机关和印发日期 | Printing/distribution authority and date |
 | 页码 | Page number |
 
-The formatter should not invent missing official elements. If a formal document lacks an element that may be required for its intended use, flag it rather than filling it.
+The formatter should not invent missing official elements. If a formal document lacks an element that may be required for its intended use, report it as not detected and ask only if the user explicitly wants completeness guidance.
 
 ## Official Formatting Range
 
-Use this checklist when creating a format plan or report.
+Use this checklist when creating a format plan or report. Apply automatic changes only to safe existing format properties; preserve and report risky or unsupported items.
 
 ### 1. Paper and Page
 
@@ -112,15 +122,16 @@ Do not force a casual internal brief into a full 版头/版记 layout unless the
 
 ### 6. Page Numbers, Headers, and Footers
 
-- Formal documents should have page numbers when more than one page.
-- If the source/template has no page number and the user did not specify one, ask whether to add page numbers for formal output.
+- Formal documents commonly use page numbers when more than one page.
+- If existing page numbers are present, diagnose or format them according to the selected rule/template.
+- If the source/template has no page number and the user did not specify one, report `not_detected`; ask before adding page numbers because adding them changes document content/layout.
 - Avoid arbitrary headers/footers in formal mode unless they are part of the official template.
 
 ### 7. Attachments
 
 - Attachment description belongs after the body when attachments are referenced.
 - Attachment content should be formatted separately and clearly identified.
-- If the document mentions attachments but no attachment files/content are provided, flag the missing attachment rather than inventing it.
+- If the document mentions attachments but no attachment files/content are provided, report the absence rather than inventing attachment names or content.
 
 ### 8. Seal and Signature Area
 
@@ -138,6 +149,20 @@ Default policy:
 - Normalize table text to the body font when safe.
 - Ask before changing table borders, image placement, seal placement, or complex text boxes.
 
+### 10. Full Word Format Coverage
+
+For strict existing-content formatting, cover the full Word formatting surface where detectable:
+
+- page and section setup;
+- paragraph and run formatting;
+- structural role formatting for detected official/internal elements;
+- tables, images, seals, text boxes, shapes, charts, formulas, and embedded objects;
+- headers, footers, page numbers, and version-record separator lines when already present;
+- styles, direct-formatting conflicts, and style variants;
+- comments, tracked changes, fields, table of contents, hyperlinks, bookmarks, footnotes/endnotes, and hidden text.
+
+Automatically change only properties that are safe and within the user's selected format source. Preserve or diagnose the rest.
+
 ## Format Source Priority
 
 Use this priority order:
@@ -148,7 +173,7 @@ Use this priority order:
 4. Internal brief preset that refers to formal-document typography but is marked as non-official.
 5. Ask the user.
 
-If the user says to proceed without answering, use the relevant preset and report every fallback decision.
+If the user says to proceed without answering, use the relevant preset for existing content and report every fallback decision.
 
 ## Format Plan Before Processing
 
@@ -156,13 +181,15 @@ When the user asks for format-only work and the format source is unclear, presen
 
 ```text
 我将按 [formal/brief/template] 处理，范围包括：
-- 页面：A4、页边距、版心/行数参考、页码策略
-- 元素：标题、主送机关、正文、附件、落款、日期等
-- 字体：标题/正文/各级标题字体字号
-- 段落：缩进、行距、段前段后、对齐
-- 装饰：颜色、下划线、分隔线按规范/模板处理
+- 页面：A4、页边距、版心/行数参考、已有页码策略
+- 元素：只处理已检测到的标题、主送机关、正文、附件、落款、日期、版记等
+- 字体：标题/正文/各级标题/表格等已有内容的字体字号
+- 段落：缩进、行距、段前段后、对齐、编号和制表位
+- 对象：表格、图片、印章、文本框、页眉页脚、批注/修订等按可安全处理范围处理
+- 覆盖报告：formatted / preserved / diagnosed_only / not_detected / unsupported / needs_review
 
-未明确项：[列出]
+未检测到项：[列出，仅报告不补写]
+未明确项：[列出需要确认的现有格式项]
 默认处理：[列出]
 是否继续？
 ```

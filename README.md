@@ -1,12 +1,16 @@
-# 公文/内部简报格式整理 Skill
+# 公文/内部简报格式处理 Skill
 
-这个仓库沉淀了一个面向 TRAE SOLO / Codex Skills 的公文格式处理 Skill：`gongwen-format-converter`。
+`gongwen-format-converter` 是一个面向 Agent 的 Word 格式处理 Skill，适用于支持 Skills 或类似可扩展技能机制的智能体环境。
 
-它的核心目标是：在不改写正文内容的前提下，把 `.docx`、Markdown、纯文本或粘贴材料整理成符合公文/内部简报习惯的 Word 版式。
+它的核心用途是：**在不改写、不补写、不重排正文内容的前提下，把已有 `.docx`、Markdown、纯文本或粘贴材料整理成公文/内部简报风格的 Word 版式**。
 
-## 一句话安装
+它不是公文内容生成器，也不是材料润色器。它只处理已有内容和已有对象的格式。
 
-把下面这句话发给支持 Skills 的 agent：
+## 快速安装
+
+### 方式一：让 Agent 安装
+
+把下面这段话发给支持 Skills 的 agent：
 
 ```text
 请从这个 GitHub 地址安装 gongwen-format-converter skill：
@@ -15,139 +19,183 @@ https://github.com/danxiaozhiren/gongwen-format-converter-skill/tree/main/skills
 
 安装完成后，重启 Codex / TRAE / 你的 agent 环境，让新 Skill 被重新发现。
 
-## 安装方式
+### 方式二：手动下载安装
 
-### 方式一：让 agent 自动安装
-
-如果你的 agent 支持 `skill-installer`，直接让它安装这个 URL：
-
-```text
-https://github.com/danxiaozhiren/gongwen-format-converter-skill/tree/main/skills/gongwen-format-converter
-```
-
-对于 Codex，可以这样描述：
-
-```text
-使用 skill-installer 从 GitHub 安装：
-https://github.com/danxiaozhiren/gongwen-format-converter-skill/tree/main/skills/gongwen-format-converter
-```
-
-### 方式二：命令行安装
-
-如果你本地有 Codex 的 `skill-installer` 脚本，可以运行类似命令：
-
-```powershell
-python "$env:USERPROFILE\.codex\skills\.system\skill-installer\scripts\install-skill-from-github.py" `
-  --url "https://github.com/danxiaozhiren/gongwen-format-converter-skill/tree/main/skills/gongwen-format-converter"
-```
-
-安装位置通常是：
-
-```text
-%USERPROFILE%\.codex\skills\gongwen-format-converter
-```
-
-### 方式三：手动安装
-
-也可以手动下载或克隆本仓库，然后把下面这个目录复制到你的 Codex skills 目录：
+下载或克隆本仓库，然后把这个目录：
 
 ```text
 skills/gongwen-format-converter
 ```
 
-复制后的目标路径通常是：
+复制到本地 skills 目录。常见位置：
 
 ```text
-%USERPROFILE%\.codex\skills\gongwen-format-converter
+Windows: %USERPROFILE%\.codex\skills\gongwen-format-converter
+macOS/Linux: ~/.codex/skills/gongwen-format-converter
 ```
 
-目录里必须能直接看到：
+复制后，目标目录下应能直接看到：
 
 ```text
 SKILL.md
+agents/
+evals/
 references/
 scripts/
-evals/
-agents/
 ```
 
-## 快速验证
+然后重启 agent。
 
-重启 agent 后，可以用下面的测试请求确认 Skill 是否被正确触发：
+## 快速开始
 
-```text
-帮我把这份 Markdown 简报整理成内部信息简报 Word 版式，内容不要改，只调整标题、期号、正文、一级标题、行距和缩进。
-```
-
-或：
-
-```text
-这个 docx 内容已经定稿了，只帮我按正式公文习惯调格式，不要润色正文。
-```
-
-## 推荐触发指令
-
-安装后建议显式点名 Skill：
+安装后，建议在请求里显式点名 Skill：
 
 ```text
 $gongwen-format-converter
 
-模式：仅格式化
-输入文件：D:\path\材料.docx
-预设：brief
-要求：内容不要改，只调整成内部信息简报格式。
-```
-
-如果你只给了一篇文章但没说怎么处理，Skill 应该先让你选择：
-
-```text
-1. 仅格式化：内容不改，只调整字体、字号、行距、缩进、页边距、标题层级等。
-2. 格式诊断：不改文档，完整识别页面、页眉页脚、段落角色、字体字号、颜色/下划线、缩进、行距、表格图片等格式状态。
-3. 模板复刻：用一份范文/模板的格式去套另一份文档，只学习样式，不复述模板内容。
-```
-
-### 仅格式化
-
-```text
-$gongwen-format-converter
-
-模式：仅格式化
+模式：现文格式化
 输入文件：D:\path\材料.docx
 预设：formal
-要求：保留原文，只调整标题、正文、一级标题、二级标题、行距、缩进和页边距。
+要求：内容不要改、不补写、不润色，只调整已有内容和对象的格式，并给出覆盖报告。
 ```
 
-### 格式诊断
+常用请求示例：
 
 ```text
 $gongwen-format-converter
 
-模式：格式诊断
-输入文件：D:\path\材料.docx
-要求：先不要生成新文档，完整诊断整篇文档的页面、页眉页脚、段落角色、字体字号、颜色/下划线、行距缩进、表格图片，以及与 formal/brief 预设的差异。
+这个 docx 内容已经定稿了，只帮我按正式公文习惯调格式，不要改正文，不要补缺失要素。
 ```
-
-### 模板复刻
 
 ```text
 $gongwen-format-converter
 
-模式：模板复刻
-模板文件：D:\path\模板.docx
-目标文件：D:\path\新材料.docx
-要求：先提取模板格式清单并列出未覆盖项，不要直接生成。确认后再套用模板。
+先不要改文档，帮我诊断这份材料当前的页面、标题、正文、行距、缩进、表格、图片、页眉页脚和样式问题。
 ```
 
-如果模板里没有某类段落或某种样式，Skill 应该先询问你是使用推荐公文/简报格式、保留目标文档原格式，还是指定自定义格式；如果你要求直接继续，默认使用对应的公文/内部简报预设并在报告中说明。
+```text
+$gongwen-format-converter
 
-模板复刻推荐流程：
+参考这份模板的格式，套到目标文档上。只学习模板样式，不复制模板正文，也不补目标文档缺失内容。请先给出模板覆盖情况。
+```
 
-1. 提取模板格式清单：页面、页眉页脚、标题、正文、各级标题、颜色、下划线、行距、缩进、表格图片等。
-2. 对照目标文档，列出模板没有覆盖的格式项。
-3. 询问缺失项处理方式：使用推荐公文/简报格式、保留目标原格式、或用户自定义。
-4. 确认后生成套用模板后的 `.docx`。
+## 它会做什么
 
-脚本层也支持先提取模板 profile：
+- 调整已有内容的 Word 版式：页面、页边距、版心、文档网格、字体、字号、颜色、行距、缩进、段前段后、标题层级等。
+- 识别并处理已有段落角色：标题、主送机关、正文、附件说明、落款、日期、附注、抄送、版记等。
+- 处理已有表格中的文字格式；在用户明确要求时，可进一步规范表格宽度、边框、单元格边距、垂直居中和跨页表头。
+- 诊断图片、印章、文本框、形状、页眉页脚、页码、批注、修订、域代码等对象和特殊状态。
+- 输出 `.docx`，并可生成 JSON 报告，说明文本是否保持不变、哪些格式已处理、哪些被保留、哪些需要人工确认。
+
+## 它不会默认做什么
+
+- 不改写、不润色、不总结、不删减正文。
+- 不调整原有段落顺序。
+- 不自动补写主送机关、发文字号、发文机关、签发人、附件名称、落款、日期、印章、抄送机关、印发机关、版记等缺失要素。
+- 不把手写编号 `一、`、`（一）`、`1.` 强行改成 Word 自动编号。
+- 不移动、缩放或重排图片、印章、文本框、复杂形状，除非用户明确要求。
+- 不联网处理用户文档正文。
+
+## 三种模式
+
+| 模式 | 适合场景 | 输出 |
+| --- | --- | --- |
+| 现文格式化 | 内容已定稿，只需要调 Word 格式 | 格式化后的 `.docx` 和覆盖报告 |
+| 现文格式诊断 | 先检查格式问题，不改文件 | 完整诊断报告 |
+| 现文模板套用 | 用一份模板/范文的格式套到目标文档 | 先输出模板覆盖分析，确认后再生成目标 `.docx` |
+
+如果用户只给了一份材料但没有说清楚要做什么，Skill 应该先询问选择哪种模式。
+
+## 格式参考依据
+
+正式公文格式优先参考以下官方规范：
+
+- 《党政机关公文处理工作条例》（中共中央办公厅、国务院办公厅，中办发〔2012〕14号）
+  - 中国政府网：<https://www.gov.cn/zwgk/2013-02/22/content_2337704.htm>
+- `GB/T 9704-2012`《党政机关公文格式》
+  - 全国标准信息公共服务平台：<https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=F3CC9BEF482524C895FDA7A08BB4A70E>
+  - 该平台显示标准状态为“现行”，发布日期为 `2012-06-29`，实施日期为 `2012-07-01`。
+
+这个 Skill 的 `formal` 预设会把这些规范转化为可执行的 Word 格式处理规则，例如：
+
+- A4 纸张、版心、页边距、文档网格等页面设置。
+- 标题、正文、各级标题、附件说明、落款、日期、版记等已有元素的字体、字号、行距、缩进和对齐。
+- 正文常用的 3 号仿宋、标题层级字体、固定行距、每页行数/每行字数参考等格式。
+- 页眉页脚、页码、表格、图片对象和特殊状态的诊断与保留策略。
+
+注意：官方规范用于判断“已有元素应该如何排版”，不是用来让 Skill 自动补写缺失元素。实际单位模板、地方细则或用户给定模板与通用规范不一致时，优先按用户提供的模板和明确要求处理，并在报告中说明。
+
+## 格式覆盖范围
+
+| 类型 | 当前处理方式 |
+| --- | --- |
+| 页面级格式 | 自动处理 A4、页边距、版心、文档网格、页眉页脚距离等安全项 |
+| 段落级格式 | 自动处理对齐、缩进、固定行距、段前段后、孤行控制、大纲级别、分页控制等 |
+| 文字级格式 | 自动处理中文/西文字体、字号、颜色、加粗、斜体、下划线、上下标、字符间距等可识别项 |
+| 已有公文元素 | 只对已存在的标题、正文、附件、落款、日期、版记等做格式处理 |
+| 页码 | 默认只诊断/格式化已有 PAGE 字段；明确要求时才添加页码 |
+| 表格 | 默认处理表内文字并诊断结构；明确要求时才规范表格结构 |
+| 图片和对象 | 默认诊断并保留，避免误动印章、图片、文本框、形状 |
+| 特殊状态 | 批注、修订、目录、复杂域、脚注尾注、书签等默认诊断并保留 |
+
+## 报告说明
+
+报告重点看这几项：
+
+- `content_preservation`：正文和表格文本是否保持不变。
+- `coverage`：哪些范围已格式化、已保留、仅诊断、未检测、暂不支持或需要人工确认。
+- `format_changes.page`：页面、版心、文档网格等页面级格式处理前后的变化。
+- `format_changes.paragraph_controls`：分页控制、大纲级别、制表位、编号/项目符号等段落控制项的变化。
+
+报告默认不输出完整正文，避免泄露内部材料内容。
+
+## 高级用法
+
+脚本依赖 `python-docx`。如需直接运行脚本，可先安装依赖：
+
+```powershell
+python -m pip install -r skills\gongwen-format-converter\scripts\requirements.txt
+```
+
+格式化文档：
+
+```powershell
+python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料.docx `
+  --output D:\path\材料_格式化.docx `
+  --preset formal `
+  --report report.json
+```
+
+只诊断，不生成新文档：
+
+```powershell
+python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料.docx `
+  --diagnose-only `
+  --preset formal `
+  --report diagnostics.json
+```
+
+明确要求添加页码时：
+
+```powershell
+python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料.docx `
+  --output D:\path\材料_带页码.docx `
+  --preset formal `
+  --add-page-numbers `
+  --report report.json
+```
+
+明确要求规范表格结构时：
+
+```powershell
+python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料.docx `
+  --output D:\path\材料_表格规范.docx `
+  --preset formal `
+  --format-tables `
+  --report report.json
+```
+
+提取模板格式并分析目标文档覆盖情况：
 
 ```powershell
 python skills\gongwen-format-converter\scripts\format_document.py `
@@ -157,65 +205,21 @@ python skills\gongwen-format-converter\scripts\format_document.py `
   --report template_profile.json
 ```
 
-## 格式范围清单
+## 当前限制
 
-正式公文格式范围优先参考《党政机关公文处理工作条例》和 `GB/T 9704-2012 党政机关公文格式`。Skill 会把格式分成这些范围来确认和处理：
+- 图片、印章、浮动文本框、复杂形状、水印等对象目前以诊断和保留为主。
+- 批注、修订、复杂域、目录、脚注尾注、书签等特殊结构不会被自动重写。
+- Word 自动编号定义会被检测和保留，但不会默认重建编号体系。
+- 最终显示效果仍可能受本机字体影响，例如 `方正小标宋简体`、`仿宋_GB2312` 是否安装。
 
-| 范围 | 示例 |
-| --- | --- |
-| 页面设置 | A4、横竖版、页边距、版心、行数/字数参考、分页 |
-| 页眉页脚 | 页码、页眉线、页脚信息 |
-| 公文要素 | 份号、密级、紧急程度、发文机关标志、发文字号、签发人、标题、主送机关、正文、附件、落款、成文日期、印章、附注、抄送、印发机关和日期 |
-| 字体字号 | 标题、正文、各级标题、签发人、版记等对应字体字号 |
-| 段落版式 | 首行缩进、左右缩进、固定行距、段前段后、对齐方式 |
-| 标题层级 | `一、`、`（一）`、`1.`、`（1）` 等层级 |
-| 装饰样式 | 颜色、加粗、斜体、下划线、分隔线、边框 |
-| 对象 | 表格、图片、印章、文本框 |
-| 附件 | 附件说明、附件正文、附件序号、是否另页 |
-
-处理优先级：
-
-1. 用户明确指定的格式。
-2. 用户提供的正式模板。
-3. `formal` 正式公文预设。
-4. `brief` 内部简报预设。
-5. 仍不明确时先询问；若用户要求直接继续，则使用最接近的推荐格式并在报告中说明。
-
-## Skill 位置
+## Skill 目录
 
 ```text
 skills/gongwen-format-converter/
 ```
 
-## 核心模式
-
-- 仅格式化模式：内容已定稿，只调整字体、字号、行距、缩进、页边距、标题层级等。
-- 格式识别模式：识别主标题、期号、正文标题、一级标题、二级标题、正文、附件、落款、日期等段落角色。
-- 模板复刻模式：从内部范文中提取样式特征，只学习格式，不复述或外泄范文正文。
-
-## 支持输入
-
-- `.docx`
-- `.md`
-- `.txt`
-- 粘贴文本
-- 模板 `.docx` + 目标文档
-
-主输出为 `.docx`，因为公文版式依赖字体、字号、页边距、固定行距、缩进等 Word 样式能力。
-
-## 隐私原则
-
-默认将用户提供的公文、简报、会议、经营、财务、人事等材料视为内部敏感内容：
-
-- 不联网处理用户文档正文。
-- 不在报告中默认输出完整原文。
-- 模板复刻只提取样式指纹，不提取正文语义。
-- 格式化模式默认不改写、不润色、不补写正文。
-
-## 规则沉淀
-
-比赛规则和开发检查清单见：
+核心行为规则在：
 
 ```text
-docs/solo-skill-contest-rules.md
+skills/gongwen-format-converter/SKILL.md
 ```
