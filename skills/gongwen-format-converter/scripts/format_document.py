@@ -19,12 +19,28 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from docx import Document
-from docx.enum.section import WD_SECTION_START
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
-from docx.oxml import OxmlElement
-from docx.oxml.ns import qn
-from docx.shared import Mm, Pt, RGBColor
+try:
+    from docx import Document
+    from docx.enum.section import WD_SECTION_START
+    from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Mm, Pt, RGBColor
+except ModuleNotFoundError as exc:
+    if exc.name != "docx":
+        raise
+    Document = None
+    WD_SECTION_START = None
+    WD_ALIGN_PARAGRAPH = None
+    WD_LINE_SPACING = None
+    OxmlElement = None
+    qn = None
+    Mm = None
+    Pt = None
+    RGBColor = None
+    DOCX_IMPORT_ERROR: ModuleNotFoundError | None = exc
+else:
+    DOCX_IMPORT_ERROR = None
 
 
 CHINESE_NUM = "一二三四五六七八九十"
@@ -58,20 +74,38 @@ def pt_value(value: Any) -> float | None:
 def mm_value(value: Any) -> float | None:
     if value is None:
         return None
+    try:
+        return round(float(value.mm), 2)
+    except AttributeError:
+        try:
+            return round(float(value), 2)
+        except Exception:
+            return None
 
 
 def bool_or_none(value: Any) -> bool | None:
     if value is None:
         return None
     return bool(value)
-    try:
-        return round(float(value.mm), 2)
-    except AttributeError:
-        return None
+
+
+def require_docx() -> None:
+    if DOCX_IMPORT_ERROR is None:
+        return
+    requirements_path = Path(__file__).with_name("requirements.txt")
+    raise SystemExit(
+        "Missing dependency: python-docx.\n"
+        f'Install script dependencies with: python -m pip install -r "{requirements_path}"\n'
+        "Or install directly with: python -m pip install python-docx"
+    )
 
 
 def text_hash(text: str) -> str:
     return hashlib.sha256(text.strip().encode("utf-8")).hexdigest()[:12]
+
+
+def exact_text_hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
 
 
 def normalize_text(text: str) -> str:
@@ -156,17 +190,21 @@ def classify_paragraph(
     return "body", warnings
 
 
-ALIGNMENTS = {
-    "left": WD_ALIGN_PARAGRAPH.LEFT,
-    "center": WD_ALIGN_PARAGRAPH.CENTER,
-    "right": WD_ALIGN_PARAGRAPH.RIGHT,
-    "justify": WD_ALIGN_PARAGRAPH.JUSTIFY,
-}
+ALIGNMENTS = (
+    {}
+    if WD_ALIGN_PARAGRAPH is None
+    else {
+        "left": WD_ALIGN_PARAGRAPH.LEFT,
+        "center": WD_ALIGN_PARAGRAPH.CENTER,
+        "right": WD_ALIGN_PARAGRAPH.RIGHT,
+        "justify": WD_ALIGN_PARAGRAPH.JUSTIFY,
+    }
+)
 
 
 PRESETS: dict[str, dict[str, dict[str, Any]]] = {
     "formal": {
-        "_page": {"top_mm": 37, "bottom_mm": 35, "left_mm": 28, "right_mm": 26},
+        "_page": {"width_mm": 210, "height_mm": 297, "top_mm": 37, "bottom_mm": 35, "left_mm": 28, "right_mm": 26},
         "main_title": {
             "font": "方正小标宋简体",
             "size": 22,
@@ -188,7 +226,7 @@ PRESETS: dict[str, dict[str, dict[str, Any]]] = {
         "needs_review": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28},
     },
     "brief": {
-        "_page": {"top_mm": 25, "bottom_mm": 25, "left_mm": 28, "right_mm": 26},
+        "_page": {"width_mm": 210, "height_mm": 297, "top_mm": 25, "bottom_mm": 25, "left_mm": 28, "right_mm": 26},
         "main_title": {"font": "宋体", "size": 22, "bold": True, "align": "center", "first_indent": 0, "line": 32},
         "issue_number": {"font": "楷体_GB2312", "size": 16, "bold": False, "align": "center", "first_indent": 0, "line": 28},
         "metadata": {"font": "仿宋_GB2312", "size": 16, "bold": False, "align": "left", "first_indent": 0, "line": 28},
@@ -204,6 +242,44 @@ PRESETS: dict[str, dict[str, dict[str, Any]]] = {
         "needs_review": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28},
     },
 }
+
+COMMON_REPORT_ROLES = [
+    "main_title",
+    "subtitle",
+    "issue_number",
+    "metadata",
+    "separator",
+    "article_title",
+    "recipient",
+    "body",
+    "heading_1",
+    "heading_2",
+    "heading_3",
+    "attachment",
+    "note",
+    "signature",
+    "date",
+    "cc",
+    "printing_area",
+]
+
+LIMITED_FORMAT_AREAS = [
+    {
+        "area": "floating_text_boxes_and_shapes",
+        "status": "unsupported",
+        "note": "Floating text boxes and shapes are preserved; python-docx does not expose complete safe editing for them.",
+    },
+    {
+        "area": "comments_tracked_changes_and_fields",
+        "status": "unsupported",
+        "note": "Comments, tracked changes, and field codes are preserved when present but are not fully normalized by this script.",
+    },
+    {
+        "area": "watermarks_footnotes_endnotes_and_bookmarks",
+        "status": "unsupported",
+        "note": "These structures require deeper OOXML handling and are reported as outside the current automatic formatting scope.",
+    },
+]
 
 
 def set_east_asia_font(run: Any, font_name: str) -> None:
@@ -266,6 +342,10 @@ def apply_style(paragraph: Any, style: dict[str, Any]) -> None:
 def apply_page_setup(document: Any, page_style: dict[str, Any]) -> None:
     for section in document.sections:
         section.start_type = WD_SECTION_START.NEW_PAGE
+        if "width_mm" in page_style:
+            section.page_width = Mm(page_style["width_mm"])
+        if "height_mm" in page_style:
+            section.page_height = Mm(page_style["height_mm"])
         if "top_mm" in page_style:
             section.top_margin = Mm(page_style["top_mm"])
         if "bottom_mm" in page_style:
@@ -317,6 +397,90 @@ def iter_table_paragraphs(document: Any) -> list[Any]:
             for cell in row.cells:
                 paragraphs.extend(cell.paragraphs)
     return paragraphs
+
+
+def document_text_units(document: Any) -> list[dict[str, Any]]:
+    units: list[dict[str, Any]] = []
+    for idx, paragraph in enumerate(document.paragraphs):
+        units.append(
+            {
+                "identity": f"document.paragraphs[{idx}]",
+                "scope": "body_paragraph",
+                "text": paragraph.text,
+            }
+        )
+    for table_idx, table in enumerate(document.tables):
+        for row_idx, row in enumerate(table.rows):
+            for cell_idx, cell in enumerate(row.cells):
+                for paragraph_idx, paragraph in enumerate(cell.paragraphs):
+                    units.append(
+                        {
+                            "identity": (
+                                f"tables[{table_idx}].rows[{row_idx}]"
+                                f".cells[{cell_idx}].paragraphs[{paragraph_idx}]"
+                            ),
+                            "scope": "table_cell_paragraph",
+                            "text": paragraph.text,
+                        }
+                    )
+    return units
+
+
+def document_text_fingerprint(document: Any) -> dict[str, Any]:
+    units = document_text_units(document)
+    unit_fingerprints = [
+        {
+            "identity": unit["identity"],
+            "scope": unit["scope"],
+            "hash": exact_text_hash(unit["text"]),
+            "length": len(unit["text"]),
+        }
+        for unit in units
+    ]
+    combined = hashlib.sha256(
+        json.dumps(unit_fingerprints, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:16]
+    return {
+        "scope": "all body paragraph and table-cell paragraph text after input parsing",
+        "unit_count": len(unit_fingerprints),
+        "non_empty_unit_count": len([unit for unit in units if unit["text"].strip()]),
+        "combined_hash": combined,
+        "units": unit_fingerprints,
+    }
+
+
+def compare_text_fingerprints(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    before_units = before.get("units", [])
+    after_units = after.get("units", [])
+    changed_indexes = []
+    for idx, (before_unit, after_unit) in enumerate(zip(before_units, after_units), start=1):
+        if (
+            before_unit.get("identity") != after_unit.get("identity")
+            or before_unit.get("hash") != after_unit.get("hash")
+            or before_unit.get("length") != after_unit.get("length")
+        ):
+            changed_indexes.append(idx)
+    if len(before_units) != len(after_units):
+        changed_indexes.extend(range(min(len(before_units), len(after_units)) + 1, max(len(before_units), len(after_units)) + 1))
+
+    return {
+        "text_changed": before.get("combined_hash") != after.get("combined_hash"),
+        "paragraph_or_table_text_unit_count_changed": before.get("unit_count") != after.get("unit_count"),
+        "paragraph_order_changed": [
+            unit.get("identity") for unit in before_units
+        ] != [
+            unit.get("identity") for unit in after_units
+        ],
+        "generated_missing_elements": False,
+        "before_unit_count": before.get("unit_count"),
+        "after_unit_count": after.get("unit_count"),
+        "before_non_empty_unit_count": before.get("non_empty_unit_count"),
+        "after_non_empty_unit_count": after.get("non_empty_unit_count"),
+        "before_text_hash": before.get("combined_hash"),
+        "after_text_hash": after.get("combined_hash"),
+        "changed_unit_indexes": changed_indexes[:20],
+        "scope": before.get("scope"),
+    }
 
 
 def document_items(document: Any) -> list[ParagraphItem]:
@@ -587,6 +751,122 @@ def build_format_diagnostics(
     }
 
 
+def build_coverage(
+    document: Any,
+    roles: list[dict[str, Any]],
+    counts: dict[str, int],
+    mode: str,
+    diagnostics: dict[str, Any] | None,
+) -> dict[str, Any]:
+    detected_roles = sorted(role for role in counts if role != "empty")
+    formatted: list[dict[str, Any]] = []
+    preserved: list[dict[str, Any]] = []
+    diagnosed_only: list[dict[str, Any]] = []
+    needs_review: list[dict[str, Any]] = []
+
+    if mode == "diagnose-only":
+        diagnosed_only.extend(
+            [
+                {"area": "page_setup", "status": "diagnosed_only"},
+                {"area": "headers_footers", "status": "diagnosed_only"},
+                {"area": "paragraph_roles", "status": "diagnosed_only", "roles": detected_roles},
+                {"area": "typography_and_paragraph_layout", "status": "diagnosed_only"},
+                {"area": "tables", "status": "diagnosed_only", "count": len(document.tables)},
+                {
+                    "area": "inline_images_or_objects",
+                    "status": "diagnosed_only",
+                    "count": len(getattr(document, "inline_shapes", [])),
+                },
+            ]
+        )
+    else:
+        formatted.extend(
+            [
+                {"area": "page_setup", "status": "formatted"},
+                {"area": "paragraph_roles", "status": "formatted", "roles": detected_roles},
+                {"area": "typography_and_paragraph_layout", "status": "formatted"},
+            ]
+        )
+        if document.tables:
+            formatted.append(
+                {
+                    "area": "table_text",
+                    "status": "formatted",
+                    "count": len(document.tables),
+                    "note": "Table paragraph text received body-style formatting where directly accessible.",
+                }
+            )
+            preserved.append(
+                {
+                    "area": "table_structure",
+                    "status": "preserved",
+                    "count": len(document.tables),
+                    "note": "Borders, widths, row heights, merged cells, and table layout are preserved unless explicitly handled.",
+                }
+            )
+
+    inline_shape_count = len(getattr(document, "inline_shapes", []))
+    if inline_shape_count:
+        preserved.append(
+            {
+                "area": "inline_images_or_objects",
+                "status": "preserved",
+                "count": inline_shape_count,
+                "note": "Images, seals, charts, or embedded inline objects are preserved unless the user explicitly asks for repositioning.",
+            }
+        )
+
+    header_footer = diagnostics.get("headers_footers") if diagnostics else header_footer_diagnostics(document)
+    header_footer_with_text = [
+        section
+        for section in header_footer.get("sections", [])
+        if section.get("has_header_text") or section.get("has_footer_text")
+    ]
+    if header_footer_with_text and mode != "diagnose-only":
+        preserved.append(
+            {
+                "area": "headers_footers",
+                "status": "preserved",
+                "section_count": len(header_footer_with_text),
+                "note": "Existing header/footer text is preserved by default.",
+            }
+        )
+
+    not_detected = [
+        {"area": "paragraph_role", "status": "not_detected", "role": role}
+        for role in COMMON_REPORT_ROLES
+        if role not in counts
+    ]
+
+    for role_info in roles:
+        if role_info.get("role") == "needs_review" or role_info.get("warnings"):
+            needs_review.append(
+                {
+                    "area": "paragraph_role",
+                    "status": "needs_review",
+                    "paragraph_index": role_info.get("index"),
+                    "role": role_info.get("role"),
+                    "warnings": role_info.get("warnings", []),
+                }
+            )
+
+    unsupported = list(LIMITED_FORMAT_AREAS)
+    coverage = {
+        "formatted": formatted,
+        "preserved": preserved,
+        "diagnosed_only": diagnosed_only,
+        "not_detected": not_detected,
+        "unsupported": unsupported,
+        "needs_review": needs_review,
+    }
+    coverage["summary"] = {
+        key: len(value)
+        for key, value in coverage.items()
+        if isinstance(value, list)
+    }
+    return coverage
+
+
 def extract_template_profile(template_path: Path, preset: str) -> dict[str, Any]:
     document = Document(str(template_path))
     items = document_items(document)
@@ -596,6 +876,8 @@ def extract_template_profile(template_path: Path, preset: str) -> dict[str, Any]
     if document.sections:
         section = document.sections[0]
         profile["page"] = {
+            "width_mm": mm_value(section.page_width),
+            "height_mm": mm_value(section.page_height),
             "top_mm": mm_value(section.top_margin),
             "bottom_mm": mm_value(section.bottom_margin),
             "left_mm": mm_value(section.left_margin),
@@ -623,14 +905,14 @@ def build_template_profile_report(
 ) -> dict[str, Any]:
     template_roles = set(template_profile.get("roles", {}).keys())
     target_role_counts: dict[str, int] = {}
-    missing_target_roles: list[str] = []
+    uncovered_target_roles: list[str] = []
     target_paragraphs: list[dict[str, Any]] = []
 
     if target_items is not None and target_roles is not None:
         for role_info in target_roles:
             role = role_info["role"]
             target_role_counts[role] = target_role_counts.get(role, 0) + 1
-        missing_target_roles = sorted(set(target_role_counts) - template_roles)
+        uncovered_target_roles = sorted(set(target_role_counts) - template_roles)
         target_paragraphs = target_roles
         if include_text:
             enriched = []
@@ -641,7 +923,7 @@ def build_template_profile_report(
             target_paragraphs = enriched
 
     unresolved_items = []
-    for role in missing_target_roles:
+    for role in uncovered_target_roles:
         unresolved_items.append(
             {
                 "role": role,
@@ -662,7 +944,7 @@ def build_template_profile_report(
                     "reason": "No target document was provided during template extraction.",
                     "recommended_options": [
                         "Provide a target document for coverage analysis",
-                        "Proceed later and use preset fallback for missing roles",
+                        "Proceed later and use preset fallback for uncovered roles",
                     ],
                 },
                 {
@@ -681,6 +963,25 @@ def build_template_profile_report(
         "mode": "template-profile",
         "preset": preset,
         "template": str(template_path),
+        "content_preservation": {
+            "template_text_reported": bool(include_text),
+            "target_text_reported": bool(include_text),
+            "generated_missing_elements": False,
+            "note": "Template extraction reports style fingerprints and omits full text unless include_text_in_report is enabled.",
+        },
+        "coverage": {
+            "formatted": [],
+            "preserved": [],
+            "diagnosed_only": [
+                {"area": "template_style_profile", "status": "diagnosed_only"},
+                {"area": "target_role_coverage", "status": "diagnosed_only"} if target_items is not None else {"area": "target_role_coverage", "status": "not_detected"},
+            ],
+            "not_detected": [
+                {"area": "target_document", "status": "not_detected"}
+            ] if target_items is None else [],
+            "unsupported": list(LIMITED_FORMAT_AREAS),
+            "needs_review": unresolved_items,
+        },
         "template_style_profile": {
             "page": template_profile.get("page", {}),
             "role_counts": template_profile.get("role_counts", {}),
@@ -689,7 +990,7 @@ def build_template_profile_report(
         },
         "target_coverage": {
             "target_role_counts": target_role_counts,
-            "missing_target_roles": missing_target_roles,
+            "uncovered_target_roles": uncovered_target_roles,
             "target_paragraphs": target_paragraphs,
         },
         "confirmation_required": bool(unresolved_items),
@@ -789,6 +1090,8 @@ def build_report(
     diagnostics: dict[str, Any] | None,
     include_text: bool,
     items: list[ParagraphItem],
+    content_preservation: dict[str, Any],
+    coverage: dict[str, Any],
 ) -> dict[str, Any]:
     paragraph_reports = roles
     if include_text:
@@ -814,6 +1117,8 @@ def build_report(
         "output": str(output) if output else None,
         "paragraph_count": len(items),
         "role_counts": counts,
+        "content_preservation": content_preservation,
+        "coverage": coverage,
         "paragraphs": paragraph_reports,
         "warnings": warnings,
         "style_notes": style_notes,
@@ -849,6 +1154,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+
+    if not args.extract_template and not args.stdin and not args.input:
+        raise SystemExit("Provide an input file or use --stdin.")
+
+    require_docx()
     if args.extract_template:
         template_path = Path(args.extract_template).resolve()
         template_profile = extract_template_profile(template_path, args.preset)
@@ -876,9 +1186,6 @@ def main() -> int:
         write_report(report, Path(args.report).resolve() if args.report else None)
         return 0
 
-    if not args.stdin and not args.input:
-        raise SystemExit("Provide an input file or use --stdin.")
-
     input_path = Path(args.input).resolve() if args.input else None
     source_name = args.input_name if args.stdin else str(input_path)
     suffix = Path(args.input_name).suffix.lower() if args.stdin else input_path.suffix.lower()
@@ -891,6 +1198,7 @@ def main() -> int:
         document = create_document_from_items(items)
     else:
         raise SystemExit(f"Unsupported input type: {suffix}. Use .docx, .md, .markdown, or .txt.")
+    before_text_fingerprint = document_text_fingerprint(document)
 
     template_profile = None
     template_used = None
@@ -907,11 +1215,16 @@ def main() -> int:
         style_notes = []
         diagnostics = build_format_diagnostics(document, items, roles, args.preset)
         mode = "diagnose-only"
+        after_text_fingerprint = document_text_fingerprint(document)
     else:
         roles, counts, style_notes = format_document(document, items, args.preset, template_profile)
+        after_text_fingerprint = document_text_fingerprint(document)
         document.save(str(output_path))
         diagnostics = None
         mode = "template-replication" if template_profile else "format-only"
+
+    content_preservation = compare_text_fingerprints(before_text_fingerprint, after_text_fingerprint)
+    coverage = build_coverage(document, roles, counts, mode, diagnostics)
 
     report = build_report(
         source_name=source_name,
@@ -925,6 +1238,8 @@ def main() -> int:
         diagnostics=diagnostics,
         include_text=args.include_text_in_report,
         items=items,
+        content_preservation=content_preservation,
+        coverage=coverage,
     )
     if args.report or diagnose_only:
         write_report(report, Path(args.report).resolve() if args.report else None)
