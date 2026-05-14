@@ -23,7 +23,8 @@ try:
     from docx import Document
     from docx.enum.section import WD_SECTION_START
     from docx.enum.style import WD_STYLE_TYPE
-    from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+    from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
+    from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING, WD_TAB_ALIGNMENT, WD_TAB_LEADER
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
     from docx.shared import Mm, Pt, RGBColor
@@ -33,8 +34,12 @@ except ModuleNotFoundError as exc:
     Document = None
     WD_SECTION_START = None
     WD_STYLE_TYPE = None
+    WD_CELL_VERTICAL_ALIGNMENT = None
+    WD_TABLE_ALIGNMENT = None
     WD_ALIGN_PARAGRAPH = None
     WD_LINE_SPACING = None
+    WD_TAB_ALIGNMENT = None
+    WD_TAB_LEADER = None
     OxmlElement = None
     qn = None
     Mm = None
@@ -52,6 +57,14 @@ H1_RE = re.compile(r"^[%s]+、" % CHINESE_NUM)
 H2_RE = re.compile(r"^（[%s]+）" % CHINESE_NUM)
 H3_RE = re.compile(r"^\d+\s*[.．、]")
 SEPARATOR_RE = re.compile(r"^[\-_—=─━]{3,}$")
+BULLET_RE = re.compile(r"^(?:[•·●○■□◆◇]\s*|-\s+)")
+MANUAL_NUMBERING_PATTERNS = [
+    ("chinese_level_1", H1_RE),
+    ("chinese_level_2", H2_RE),
+    ("arabic_level_3", H3_RE),
+    ("paren_arabic", re.compile(r"^（\d+）")),
+    ("circled_arabic", re.compile(r"^[①②③④⑤⑥⑦⑧⑨⑩]")),
+]
 
 
 @dataclass
@@ -123,6 +136,20 @@ def xml_child_val(element: Any, path: str) -> str | None:
         return None
 
 
+def first_child(element: Any, path: str) -> Any | None:
+    matches = safe_xpath(element, path)
+    return matches[0] if matches else None
+
+
+def get_or_add_child(element: Any, child_tag: str) -> Any:
+    existing = first_child(element, f"./{child_tag}")
+    if existing is not None:
+        return existing
+    child = OxmlElement(child_tag)
+    element.append(child)
+    return child
+
+
 def require_docx() -> None:
     if DOCX_IMPORT_ERROR is None:
         return
@@ -144,6 +171,14 @@ def exact_text_hash(text: str) -> str:
 
 def normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", text.strip())
+
+
+def manual_numbering_kind(text: str) -> str | None:
+    normalized = normalize_text(text)
+    for kind, pattern in MANUAL_NUMBERING_PATTERNS:
+        if pattern.match(normalized):
+            return kind
+    return None
 
 
 def is_short_title_like(text: str) -> bool:
@@ -235,10 +270,51 @@ ALIGNMENTS = (
     }
 )
 
+TAB_ALIGNMENTS = (
+    {}
+    if WD_TAB_ALIGNMENT is None
+    else {
+        "LEFT": WD_TAB_ALIGNMENT.LEFT,
+        "CENTER": WD_TAB_ALIGNMENT.CENTER,
+        "RIGHT": WD_TAB_ALIGNMENT.RIGHT,
+        "DECIMAL": WD_TAB_ALIGNMENT.DECIMAL,
+        "BAR": WD_TAB_ALIGNMENT.BAR,
+        "LIST": WD_TAB_ALIGNMENT.LIST,
+        "CLEAR": WD_TAB_ALIGNMENT.CLEAR,
+    }
+)
+
+TAB_LEADERS = (
+    {}
+    if WD_TAB_LEADER is None
+    else {
+        "SPACES": WD_TAB_LEADER.SPACES,
+        "DOTS": WD_TAB_LEADER.DOTS,
+        "DASHES": WD_TAB_LEADER.DASHES,
+        "LINES": WD_TAB_LEADER.LINES,
+        "HEAVY": WD_TAB_LEADER.HEAVY,
+        "MIDDLE_DOT": WD_TAB_LEADER.MIDDLE_DOT,
+    }
+)
+
 
 PRESETS: dict[str, dict[str, dict[str, Any]]] = {
     "formal": {
-        "_page": {"width_mm": 210, "height_mm": 297, "top_mm": 37, "bottom_mm": 35, "left_mm": 28, "right_mm": 26},
+        "_page": {
+            "width_mm": 210,
+            "height_mm": 297,
+            "top_mm": 37,
+            "bottom_mm": 35,
+            "left_mm": 28,
+            "right_mm": 26,
+            "text_area_width_mm": 156,
+            "text_area_height_mm": 225,
+            "grid_line_count": 22,
+            "grid_char_count": 28,
+            "grid_type": "linesAndChars",
+            "line_pitch_twips": 580,
+            "char_space_twips": 316,
+        },
         "main_title": {
             "font": "方正小标宋简体",
             "size": 22,
@@ -247,33 +323,48 @@ PRESETS: dict[str, dict[str, dict[str, Any]]] = {
             "first_indent": 0,
             "line": 32,
             "space_after": 0,
+            "keep_together": True,
+            "keep_with_next": True,
+            "widow_control": True,
+            "outline_level": "0",
         },
-        "subtitle": {"font": "楷体_GB2312", "size": 16, "align": "center", "first_indent": 0},
-        "recipient": {"font": "仿宋_GB2312", "size": 16, "align": "left", "first_indent": 0},
-        "body": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28},
-        "heading_1": {"font": "黑体", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28},
-        "heading_2": {"font": "楷体_GB2312", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28},
-        "heading_3": {"font": "仿宋_GB2312", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28},
-        "attachment": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28},
-        "signature": {"font": "仿宋_GB2312", "size": 16, "align": "right", "first_indent": 0, "line": 28},
-        "date": {"font": "仿宋_GB2312", "size": 16, "align": "right", "first_indent": 0, "line": 28},
-        "needs_review": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28},
+        "subtitle": {"font": "楷体_GB2312", "size": 16, "align": "center", "first_indent": 0, "widow_control": True},
+        "recipient": {"font": "仿宋_GB2312", "size": 16, "align": "left", "first_indent": 0, "keep_with_next": True, "widow_control": True},
+        "body": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28, "widow_control": True},
+        "heading_1": {"font": "黑体", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "0"},
+        "heading_2": {"font": "楷体_GB2312", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "1"},
+        "heading_3": {"font": "仿宋_GB2312", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "2"},
+        "attachment": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28, "widow_control": True},
+        "signature": {"font": "仿宋_GB2312", "size": 16, "align": "right", "first_indent": 0, "line": 28, "widow_control": True},
+        "date": {"font": "仿宋_GB2312", "size": 16, "align": "right", "first_indent": 0, "line": 28, "widow_control": True},
+        "needs_review": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28, "widow_control": True},
     },
     "brief": {
-        "_page": {"width_mm": 210, "height_mm": 297, "top_mm": 25, "bottom_mm": 25, "left_mm": 28, "right_mm": 26},
-        "main_title": {"font": "宋体", "size": 22, "bold": True, "align": "center", "first_indent": 0, "line": 32},
-        "issue_number": {"font": "楷体_GB2312", "size": 16, "bold": False, "align": "center", "first_indent": 0, "line": 28},
-        "metadata": {"font": "仿宋_GB2312", "size": 16, "bold": False, "align": "left", "first_indent": 0, "line": 28},
-        "separator": {"font": "宋体", "size": 12, "bold": False, "align": "center", "first_indent": 0, "line": 18},
-        "article_title": {"font": "宋体", "size": 22, "bold": True, "align": "center", "first_indent": 0, "line": 32},
-        "body": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28},
-        "heading_1": {"font": "黑体", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28},
-        "heading_2": {"font": "楷体_GB2312", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28},
-        "heading_3": {"font": "仿宋_GB2312", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28},
-        "attachment": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28},
-        "signature": {"font": "仿宋_GB2312", "size": 16, "align": "right", "first_indent": 0, "line": 28},
-        "date": {"font": "仿宋_GB2312", "size": 16, "align": "right", "first_indent": 0, "line": 28},
-        "needs_review": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28},
+        "_page": {
+            "width_mm": 210,
+            "height_mm": 297,
+            "top_mm": 25,
+            "bottom_mm": 25,
+            "left_mm": 28,
+            "right_mm": 26,
+            "text_area_width_mm": 156,
+            "text_area_height_mm": 247,
+            "grid_type": "lines",
+            "line_pitch_twips": 560,
+        },
+        "main_title": {"font": "宋体", "size": 22, "bold": True, "align": "center", "first_indent": 0, "line": 32, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "0"},
+        "issue_number": {"font": "楷体_GB2312", "size": 16, "bold": False, "align": "center", "first_indent": 0, "line": 28, "keep_with_next": True, "widow_control": True},
+        "metadata": {"font": "仿宋_GB2312", "size": 16, "bold": False, "align": "left", "first_indent": 0, "line": 28, "widow_control": True},
+        "separator": {"font": "宋体", "size": 12, "bold": False, "align": "center", "first_indent": 0, "line": 18, "keep_with_next": True, "widow_control": True},
+        "article_title": {"font": "宋体", "size": 22, "bold": True, "align": "center", "first_indent": 0, "line": 32, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "0"},
+        "body": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28, "widow_control": True},
+        "heading_1": {"font": "黑体", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "0"},
+        "heading_2": {"font": "楷体_GB2312", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "1"},
+        "heading_3": {"font": "仿宋_GB2312", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "2"},
+        "attachment": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28, "widow_control": True},
+        "signature": {"font": "仿宋_GB2312", "size": 16, "align": "right", "first_indent": 0, "line": 28, "widow_control": True},
+        "date": {"font": "仿宋_GB2312", "size": 16, "align": "right", "first_indent": 0, "line": 28, "widow_control": True},
+        "needs_review": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28, "widow_control": True},
     },
 }
 
@@ -328,6 +419,32 @@ def set_east_asia_font(run: Any, font_name: str) -> None:
     rfonts.set(qn("w:hAnsi"), font_name)
 
 
+def set_outline_level(paragraph: Any, level: Any) -> None:
+    ppr = paragraph._element.get_or_add_pPr()
+    outline = get_or_add_child(ppr, "w:outlineLvl")
+    outline.set(qn("w:val"), str(level))
+
+
+def apply_tab_stops(paragraph: Any, tab_stops: list[dict[str, Any]]) -> None:
+    try:
+        stops = paragraph.paragraph_format.tab_stops
+        stops.clear_all()
+        for tab in tab_stops:
+            position = tab.get("position_pt")
+            if position is None:
+                continue
+            alignment = TAB_ALIGNMENTS.get(str(tab.get("alignment") or "LEFT"))
+            leader = TAB_LEADERS.get(str(tab.get("leader") or "SPACES"))
+            kwargs = {}
+            if alignment is not None:
+                kwargs["alignment"] = alignment
+            if leader is not None:
+                kwargs["leader"] = leader
+            stops.add_tab_stop(Pt(float(position)), **kwargs)
+    except Exception:
+        return
+
+
 def apply_style(paragraph: Any, style: dict[str, Any]) -> None:
     fmt = paragraph.paragraph_format
     align = style.get("align")
@@ -350,6 +467,18 @@ def apply_style(paragraph: Any, style: dict[str, Any]) -> None:
     if "line" in style and style["line"]:
         fmt.line_spacing_rule = WD_LINE_SPACING.EXACTLY
         fmt.line_spacing = Pt(style["line"])
+    if "keep_together" in style:
+        fmt.keep_together = bool(style["keep_together"])
+    if "keep_with_next" in style:
+        fmt.keep_with_next = bool(style["keep_with_next"])
+    if "page_break_before" in style:
+        fmt.page_break_before = bool(style["page_break_before"])
+    if "widow_control" in style:
+        fmt.widow_control = bool(style["widow_control"])
+    if "outline_level" in style:
+        set_outline_level(paragraph, style["outline_level"])
+    if style.get("tab_stops"):
+        apply_tab_stops(paragraph, style["tab_stops"])
 
     font = style.get("font", "仿宋_GB2312")
     size = style.get("size", 16)
@@ -373,6 +502,22 @@ def apply_style(paragraph: Any, style: dict[str, Any]) -> None:
                 pass
 
 
+def apply_document_grid(section: Any, page_style: dict[str, Any]) -> None:
+    if not any(key in page_style for key in ["grid_type", "line_pitch_twips", "char_space_twips"]):
+        return
+    sect_pr = section._sectPr
+    nodes = safe_xpath(sect_pr, "./w:docGrid")
+    doc_grid = nodes[0] if nodes else OxmlElement("w:docGrid")
+    if not nodes:
+        sect_pr.append(doc_grid)
+    if "grid_type" in page_style:
+        doc_grid.set(qn("w:type"), str(page_style["grid_type"]))
+    if "line_pitch_twips" in page_style:
+        doc_grid.set(qn("w:linePitch"), str(page_style["line_pitch_twips"]))
+    if "char_space_twips" in page_style:
+        doc_grid.set(qn("w:charSpace"), str(page_style["char_space_twips"]))
+
+
 def apply_page_setup(document: Any, page_style: dict[str, Any]) -> None:
     for section in document.sections:
         section.start_type = WD_SECTION_START.NEW_PAGE
@@ -388,6 +533,7 @@ def apply_page_setup(document: Any, page_style: dict[str, Any]) -> None:
             section.left_margin = Mm(page_style["left_mm"])
         if "right_mm" in page_style:
             section.right_margin = Mm(page_style["right_mm"])
+        apply_document_grid(section, page_style)
 
 
 def read_plain_or_markdown(path: Path | None, stdin: bool, input_name: str) -> tuple[list[ParagraphItem], str]:
@@ -483,7 +629,11 @@ def document_text_fingerprint(document: Any) -> dict[str, Any]:
     }
 
 
-def compare_text_fingerprints(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+def compare_text_fingerprints(
+    before: dict[str, Any],
+    after: dict[str, Any],
+    generated_layout_elements: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     before_units = before.get("units", [])
     after_units = after.get("units", [])
     changed_indexes = []
@@ -497,6 +647,7 @@ def compare_text_fingerprints(before: dict[str, Any], after: dict[str, Any]) -> 
     if len(before_units) != len(after_units):
         changed_indexes.extend(range(min(len(before_units), len(after_units)) + 1, max(len(before_units), len(after_units)) + 1))
 
+    generated_layout_elements = generated_layout_elements or []
     return {
         "text_changed": before.get("combined_hash") != after.get("combined_hash"),
         "paragraph_or_table_text_unit_count_changed": before.get("unit_count") != after.get("unit_count"),
@@ -505,7 +656,8 @@ def compare_text_fingerprints(before: dict[str, Any], after: dict[str, Any]) -> 
         ] != [
             unit.get("identity") for unit in after_units
         ],
-        "generated_missing_elements": False,
+        "generated_missing_elements": bool(generated_layout_elements),
+        "generated_layout_elements": generated_layout_elements,
         "before_unit_count": before.get("unit_count"),
         "after_unit_count": after.get("unit_count"),
         "before_non_empty_unit_count": before.get("non_empty_unit_count"),
@@ -698,26 +850,61 @@ def page_diagnostics(document: Any, preset: str) -> dict[str, Any]:
         columns = safe_xpath(sect_pr, "./w:cols")
         doc_grid = safe_xpath(sect_pr, "./w:docGrid")
         gutter = getattr(section, "gutter", None)
+        width_mm = mm_value(section.page_width)
+        height_mm = mm_value(section.page_height)
+        left_mm = mm_value(section.left_margin)
+        right_mm = mm_value(section.right_margin)
+        top_mm = mm_value(section.top_margin)
+        bottom_mm = mm_value(section.bottom_margin)
+        gutter_mm = mm_value(gutter)
+        text_area_width = None
+        text_area_height = None
+        if width_mm is not None and left_mm is not None and right_mm is not None:
+            text_area_width = round(width_mm - left_mm - right_mm - (gutter_mm or 0), 2)
+        if height_mm is not None and top_mm is not None and bottom_mm is not None:
+            text_area_height = round(height_mm - top_mm - bottom_mm, 2)
+        grid_info = {
+            "type": doc_grid[0].get(qn("w:type")),
+            "line_pitch_twips": doc_grid[0].get(qn("w:linePitch")),
+            "char_space_twips": doc_grid[0].get(qn("w:charSpace")),
+        } if doc_grid else None
         page = {
             "index": idx + 1,
-            "width_mm": mm_value(section.page_width),
-            "height_mm": mm_value(section.page_height),
-            "top_margin_mm": mm_value(section.top_margin),
-            "bottom_margin_mm": mm_value(section.bottom_margin),
-            "left_margin_mm": mm_value(section.left_margin),
-            "right_margin_mm": mm_value(section.right_margin),
-            "gutter_mm": mm_value(gutter),
+            "width_mm": width_mm,
+            "height_mm": height_mm,
+            "top_margin_mm": top_mm,
+            "bottom_margin_mm": bottom_mm,
+            "left_margin_mm": left_mm,
+            "right_margin_mm": right_mm,
+            "gutter_mm": gutter_mm,
+            "text_area_width_mm": text_area_width,
+            "text_area_height_mm": text_area_height,
             "header_distance_mm": mm_value(section.header_distance),
             "footer_distance_mm": mm_value(section.footer_distance),
             "different_first_page_header_footer": bool(section.different_first_page_header_footer),
             "section_start_type": enum_name(section.start_type),
             "column_count": columns[0].get(qn("w:num")) if columns else None,
             "column_space_twips": columns[0].get(qn("w:space")) if columns else None,
-            "document_grid": {
-                "type": doc_grid[0].get(qn("w:type")),
-                "line_pitch": doc_grid[0].get(qn("w:linePitch")),
-                "char_space": doc_grid[0].get(qn("w:charSpace")),
-            } if doc_grid else None,
+            "document_grid": grid_info,
+            "expected_page_setup": {
+                key: expected.get(key)
+                for key in [
+                    "width_mm",
+                    "height_mm",
+                    "top_mm",
+                    "bottom_mm",
+                    "left_mm",
+                    "right_mm",
+                    "text_area_width_mm",
+                    "text_area_height_mm",
+                    "grid_line_count",
+                    "grid_char_count",
+                    "grid_type",
+                    "line_pitch_twips",
+                    "char_space_twips",
+                ]
+                if expected.get(key) is not None
+            },
             "orientation": "landscape"
             if section.page_width and section.page_height and section.page_width > section.page_height
             else "portrait",
@@ -733,12 +920,123 @@ def page_diagnostics(document: Any, preset: str) -> dict[str, Any]:
             exp = expected.get(expected_key)
             if value is not None and exp is not None and abs(value - exp) > 1:
                 differences.append({"field": key, "actual": value, "expected": exp})
+        for key in ["text_area_width_mm", "text_area_height_mm"]:
+            value = page.get(key)
+            exp = expected.get(key)
+            if value is not None and exp is not None and abs(value - exp) > 1:
+                differences.append({"field": key, "actual": value, "expected": exp})
+        if grid_info:
+            for actual_key, expected_key in [
+                ("type", "grid_type"),
+                ("line_pitch_twips", "line_pitch_twips"),
+                ("char_space_twips", "char_space_twips"),
+            ]:
+                exp = expected.get(expected_key)
+                actual = grid_info.get(actual_key)
+                if exp is not None and actual is not None and str(actual) != str(exp):
+                    differences.append({"field": "document_grid." + actual_key, "actual": actual, "expected": exp})
+        elif expected.get("grid_type") or expected.get("line_pitch_twips"):
+            differences.append({"field": "document_grid", "actual": None, "expected": "present"})
         if page["width_mm"] and page["height_mm"]:
             if abs(page["width_mm"] - 210) > 2 or abs(page["height_mm"] - 297) > 2:
                 differences.append({"field": "paper", "actual": f"{page['width_mm']}x{page['height_mm']}mm", "expected": "A4 210x297mm"})
         page["differences_from_preset"] = differences
         sections.append(page)
     return {"section_count": len(sections), "sections": sections}
+
+
+PAGE_CHANGE_FIELDS = [
+    "width_mm",
+    "height_mm",
+    "top_margin_mm",
+    "bottom_margin_mm",
+    "left_margin_mm",
+    "right_margin_mm",
+    "gutter_mm",
+    "text_area_width_mm",
+    "text_area_height_mm",
+    "header_distance_mm",
+    "footer_distance_mm",
+    "orientation",
+    "section_start_type",
+    "column_count",
+    "column_space_twips",
+    "document_grid.type",
+    "document_grid.line_pitch_twips",
+    "document_grid.char_space_twips",
+]
+
+
+def nested_value(data: dict[str, Any], dotted_key: str) -> Any:
+    value: Any = data
+    for part in dotted_key.split("."):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+    return value
+
+
+def compare_page_diagnostics(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    before_sections = before.get("sections", [])
+    after_sections = after.get("sections", [])
+    changes: list[dict[str, Any]] = []
+    for idx in range(max(len(before_sections), len(after_sections))):
+        before_section = before_sections[idx] if idx < len(before_sections) else {}
+        after_section = after_sections[idx] if idx < len(after_sections) else {}
+        section_changes = []
+        for field in PAGE_CHANGE_FIELDS:
+            before_value = nested_value(before_section, field)
+            after_value = nested_value(after_section, field)
+            if before_value != after_value:
+                section_changes.append(
+                    {
+                        "field": field,
+                        "before": before_value,
+                        "after": after_value,
+                    }
+                )
+        if section_changes:
+            changes.append({"section_index": idx + 1, "changes": section_changes})
+    return {
+        "section_count_before": before.get("section_count"),
+        "section_count_after": after.get("section_count"),
+        "changed": bool(changes) or before.get("section_count") != after.get("section_count"),
+        "changes": changes,
+    }
+
+
+def field_instructions(element: Any) -> list[str]:
+    instructions = []
+    for node in safe_xpath(element, ".//w:instrText"):
+        if node.text:
+            instructions.append(node.text)
+    for node in safe_xpath(element, ".//w:fldSimple"):
+        instr = node.get(qn("w:instr"))
+        if instr:
+            instructions.append(instr)
+    return instructions
+
+
+def field_count(instructions: list[str], field_name: str) -> int:
+    pattern = re.compile(rf"\b{re.escape(field_name)}\b", re.IGNORECASE)
+    return len([instruction for instruction in instructions if pattern.search(instruction)])
+
+
+def paragraph_has_field(paragraph: Any, field_name: str) -> bool:
+    return field_count(field_instructions(paragraph._element), field_name) > 0
+
+
+def header_footer_part_diagnostics(part: Any) -> dict[str, Any]:
+    paragraphs = [p for p in part.paragraphs if p.text.strip()]
+    instructions = field_instructions(part._element)
+    return {
+        "has_text": bool(paragraphs),
+        "paragraph_count": len(paragraphs),
+        "field_instruction_count": len(instructions),
+        "page_field_count": field_count(instructions, "PAGE"),
+        "num_pages_field_count": field_count(instructions, "NUMPAGES"),
+        "has_page_number_field": field_count(instructions, "PAGE") > 0,
+    }
 
 
 def header_footer_diagnostics(document: Any) -> dict[str, Any]:
@@ -757,17 +1055,9 @@ def header_footer_diagnostics(document: Any) -> dict[str, Any]:
         header_details = {}
         footer_details = {}
         for name, part in header_parts.items():
-            paragraphs = [p for p in part.paragraphs if p.text.strip()]
-            header_details[name] = {
-                "has_text": bool(paragraphs),
-                "paragraph_count": len(paragraphs),
-            }
+            header_details[name] = header_footer_part_diagnostics(part)
         for name, part in footer_parts.items():
-            paragraphs = [p for p in part.paragraphs if p.text.strip()]
-            footer_details[name] = {
-                "has_text": bool(paragraphs),
-                "paragraph_count": len(paragraphs),
-            }
+            footer_details[name] = header_footer_part_diagnostics(part)
         header_text = " ".join(
             p.text.strip()
             for part in header_parts.values()
@@ -785,12 +1075,225 @@ def header_footer_diagnostics(document: Any) -> dict[str, Any]:
                 "index": idx + 1,
                 "has_header_text": bool(header_text),
                 "has_footer_text": bool(footer_text),
+                "has_page_number_field": any(
+                    details.get("has_page_number_field")
+                    for details in [*header_details.values(), *footer_details.values()]
+                ),
+                "page_field_count": sum(
+                    int(details.get("page_field_count", 0))
+                    for details in [*header_details.values(), *footer_details.values()]
+                ),
                 "different_first_page_header_footer": bool(section.different_first_page_header_footer),
                 "header_parts": header_details,
                 "footer_parts": footer_details,
             }
         )
     return {"sections": sections}
+
+
+def add_field(paragraph: Any, instruction: str) -> None:
+    run = paragraph.add_run()
+    begin = OxmlElement("w:fldChar")
+    begin.set(qn("w:fldCharType"), "begin")
+    run._r.append(begin)
+
+    run = paragraph.add_run()
+    instr = OxmlElement("w:instrText")
+    instr.set(qn("xml:space"), "preserve")
+    instr.text = f" {instruction} "
+    run._r.append(instr)
+
+    run = paragraph.add_run()
+    separate = OxmlElement("w:fldChar")
+    separate.set(qn("w:fldCharType"), "separate")
+    run._r.append(separate)
+
+    paragraph.add_run("1")
+
+    run = paragraph.add_run()
+    end = OxmlElement("w:fldChar")
+    end.set(qn("w:fldCharType"), "end")
+    run._r.append(end)
+
+
+def page_number_style(preset: str) -> dict[str, Any]:
+    base_font = PRESETS[preset].get("body", {}).get("font", "仿宋_GB2312")
+    return {
+        "font": base_font,
+        "size": 14,
+        "align": "center",
+        "first_indent": 0,
+        "line": 18,
+        "space_before": 0,
+        "space_after": 0,
+    }
+
+
+def iter_header_footer_paragraphs(document: Any) -> list[tuple[int, str, str, Any]]:
+    rows = []
+    for section_idx, section in enumerate(document.sections, start=1):
+        parts = {
+            ("header", "default"): section.header,
+            ("header", "first_page"): section.first_page_header,
+            ("header", "even_page"): section.even_page_header,
+            ("footer", "default"): section.footer,
+            ("footer", "first_page"): section.first_page_footer,
+            ("footer", "even_page"): section.even_page_footer,
+        }
+        for (part_type, part_name), part in parts.items():
+            for paragraph in part.paragraphs:
+                rows.append((section_idx, part_type, part_name, paragraph))
+    return rows
+
+
+def format_existing_page_numbers(document: Any, preset: str) -> list[dict[str, Any]]:
+    actions = []
+    style = page_number_style(preset)
+    for section_idx, part_type, part_name, paragraph in iter_header_footer_paragraphs(document):
+        if paragraph_has_field(paragraph, "PAGE"):
+            apply_style(paragraph, style)
+            actions.append(
+                {
+                    "action": "formatted_existing_page_number",
+                    "section": section_idx,
+                    "part_type": part_type,
+                    "part": part_name,
+                }
+            )
+    return actions
+
+
+def footer_parts_for_page_number(section: Any) -> list[tuple[str, Any]]:
+    parts = [("default", section.footer)]
+    if section.different_first_page_header_footer:
+        parts.append(("first_page", section.first_page_footer))
+    return parts
+
+
+def part_has_page_number(part: Any) -> bool:
+    return field_count(field_instructions(part._element), "PAGE") > 0
+
+
+def add_page_numbers(document: Any, preset: str) -> list[dict[str, Any]]:
+    actions = []
+    style = page_number_style(preset)
+    for section_idx, section in enumerate(document.sections, start=1):
+        for part_name, footer in footer_parts_for_page_number(section):
+            if part_has_page_number(footer):
+                actions.append(
+                    {
+                        "action": "preserved_existing_page_number",
+                        "section": section_idx,
+                        "part_type": "footer",
+                        "part": part_name,
+                    }
+                )
+                continue
+            paragraph = footer.paragraphs[0] if footer.paragraphs and not footer.paragraphs[0].text.strip() else footer.add_paragraph()
+            paragraph.add_run("— ")
+            add_field(paragraph, "PAGE")
+            paragraph.add_run(" —")
+            apply_style(paragraph, style)
+            actions.append(
+                {
+                    "action": "added_page_number",
+                    "section": section_idx,
+                    "part_type": "footer",
+                    "part": part_name,
+                    "format": "— PAGE —",
+                }
+            )
+    return actions
+
+
+def set_table_width_pct(table: Any, pct: int = 5000) -> None:
+    tbl_pr = table._tbl.tblPr
+    tbl_w = get_or_add_child(tbl_pr, "w:tblW")
+    tbl_w.set(qn("w:type"), "pct")
+    tbl_w.set(qn("w:w"), str(pct))
+
+
+def set_table_borders(table: Any, color: str = "000000", size: str = "4") -> None:
+    tbl_pr = table._tbl.tblPr
+    borders = get_or_add_child(tbl_pr, "w:tblBorders")
+    for edge in ["top", "left", "bottom", "right", "insideH", "insideV"]:
+        tag = "w:" + edge
+        border = get_or_add_child(borders, tag)
+        border.set(qn("w:val"), "single")
+        border.set(qn("w:sz"), size)
+        border.set(qn("w:space"), "0")
+        border.set(qn("w:color"), color)
+
+
+def set_cell_margins(cell: Any, margin_twips: int = 80) -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    tc_mar = get_or_add_child(tc_pr, "w:tcMar")
+    for side in ["top", "left", "bottom", "right"]:
+        node = get_or_add_child(tc_mar, "w:" + side)
+        node.set(qn("w:w"), str(margin_twips))
+        node.set(qn("w:type"), "dxa")
+
+
+def set_repeat_header(row: Any) -> None:
+    tr_pr = row._tr.get_or_add_trPr()
+    header = get_or_add_child(tr_pr, "w:tblHeader")
+    header.set(qn("w:val"), "true")
+
+
+def table_has_merged_cells(table: Any) -> bool:
+    return bool(
+        safe_xpath_count(table._tbl, ".//w:gridSpan")
+        or safe_xpath_count(table._tbl, ".//w:vMerge")
+    )
+
+
+def table_structure_options(preset: str) -> dict[str, Any]:
+    return {
+        "width_pct": 5000,
+        "border_color": "000000",
+        "border_size": "4",
+        "cell_margin_twips": 80,
+        "repeat_first_row": True,
+        "vertical_alignment": "center",
+        "alignment": "center",
+        "autofit": False,
+    }
+
+
+def format_table_structures(document: Any, preset: str) -> list[dict[str, Any]]:
+    actions = []
+    options = table_structure_options(preset)
+    for idx, table in enumerate(document.tables, start=1):
+        action: dict[str, Any] = {
+            "action": "formatted_table_structure",
+            "table_index": idx,
+            "rows": len(table.rows),
+            "columns": len(table.columns),
+            "merged_cells_detected": table_has_merged_cells(table),
+            "applied": [],
+        }
+        if WD_TABLE_ALIGNMENT is not None:
+            table.alignment = WD_TABLE_ALIGNMENT.CENTER
+            action["applied"].append("alignment_center")
+        table.autofit = bool(options["autofit"])
+        action["applied"].append("autofit_false")
+        set_table_width_pct(table, int(options["width_pct"]))
+        action["applied"].append("width_100_percent")
+        set_table_borders(table, str(options["border_color"]), str(options["border_size"]))
+        action["applied"].append("single_black_borders")
+        if options["repeat_first_row"] and table.rows:
+            set_repeat_header(table.rows[0])
+            action["applied"].append("repeat_first_row")
+        for row in table.rows:
+            for cell in row.cells:
+                set_cell_margins(cell, int(options["cell_margin_twips"]))
+                if WD_CELL_VERTICAL_ALIGNMENT is not None:
+                    cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+        action["applied"].append("cell_margins")
+        if WD_CELL_VERTICAL_ALIGNMENT is not None:
+            action["applied"].append("vertical_center")
+        actions.append(action)
+    return actions
 
 
 def table_diagnostics(document: Any) -> dict[str, Any]:
@@ -813,9 +1316,9 @@ def table_diagnostics(document: Any) -> dict[str, Any]:
                 if tc_mar:
                     margins = {}
                     for side in ["top", "bottom", "left", "right"]:
-                        side_nodes = safe_xpath(tc_mar[0], f"./w:{side}")
-                        if side_nodes:
-                            margins[side] = side_nodes[0].get(qn("w:w"))
+                        side_node = tc_mar[0].find(qn("w:" + side))
+                        if side_node is not None:
+                            margins[side] = side_node.get(qn("w:w"))
                     if margins:
                         cell_margins.append(margins)
                 for p in cell.paragraphs:
@@ -832,6 +1335,10 @@ def table_diagnostics(document: Any) -> dict[str, Any]:
                 "columns": len(table.columns),
                 "alignment": enum_name(table.alignment),
                 "autofit": bool(table.autofit),
+                "merged_cell_indicators": {
+                    "grid_span_count": safe_xpath_count(table._tbl, ".//w:gridSpan"),
+                    "vertical_merge_count": safe_xpath_count(table._tbl, ".//w:vMerge"),
+                },
                 "width_twips": tbl_width[0].get(qn("w:w")) if tbl_width else None,
                 "width_type": tbl_width[0].get(qn("w:type")) if tbl_width else None,
                 "border_element_count": tbl_borders,
@@ -920,6 +1427,112 @@ def special_state_diagnostics(document: Any) -> dict[str, Any]:
     }
 
 
+PARAGRAPH_CONTROL_COUNT_KEYS = [
+    "paragraph_count",
+    "keep_together_count",
+    "keep_with_next_count",
+    "page_break_before_count",
+    "widow_control_count",
+    "outline_level_count",
+    "tab_stop_paragraph_count",
+    "word_numbering_paragraph_count",
+    "manual_numbering_paragraph_count",
+    "manual_bullet_paragraph_count",
+]
+
+
+def paragraph_control_diagnostics(
+    items: list[ParagraphItem],
+    roles: list[dict[str, Any]],
+) -> dict[str, Any]:
+    counts = {key: 0 for key in PARAGRAPH_CONTROL_COUNT_KEYS}
+    counts["paragraph_count"] = len(items)
+    outline_levels: Counter[str] = Counter()
+    manual_numbering: Counter[str] = Counter()
+    samples = []
+    for item, role_info in zip(items, roles):
+        paragraph = item.paragraph
+        if paragraph is None:
+            continue
+        style = extract_paragraph_style(paragraph)
+        controls = {
+            key: style.get(key)
+            for key in [
+                "keep_together",
+                "keep_with_next",
+                "page_break_before",
+                "widow_control",
+                "outline_level",
+                "numbering",
+                "tab_stops",
+            ]
+            if style.get(key) is not None
+        }
+        if style.get("keep_together"):
+            counts["keep_together_count"] += 1
+        if style.get("keep_with_next"):
+            counts["keep_with_next_count"] += 1
+        if style.get("page_break_before"):
+            counts["page_break_before_count"] += 1
+        if style.get("widow_control"):
+            counts["widow_control_count"] += 1
+        if style.get("outline_level") is not None:
+            counts["outline_level_count"] += 1
+            outline_levels[str(style["outline_level"])] += 1
+        if style.get("tab_stops"):
+            counts["tab_stop_paragraph_count"] += 1
+        if style.get("numbering"):
+            counts["word_numbering_paragraph_count"] += 1
+
+        manual_kind = manual_numbering_kind(item.text)
+        if manual_kind:
+            counts["manual_numbering_paragraph_count"] += 1
+            manual_numbering[manual_kind] += 1
+        normalized_text = normalize_text(item.text)
+        bullet_like = bool(BULLET_RE.match(normalized_text)) and not SEPARATOR_RE.match(normalized_text)
+        if bullet_like:
+            counts["manual_bullet_paragraph_count"] += 1
+
+        if len(samples) < 12 and (controls or manual_kind or bullet_like):
+            sample = {
+                "paragraph_index": role_info.get("index"),
+                "role": role_info.get("role"),
+                "hash": role_info.get("hash"),
+                "controls": controls,
+            }
+            if manual_kind:
+                sample["manual_numbering_kind"] = manual_kind
+            if bullet_like:
+                sample["manual_bullet_like"] = True
+            samples.append(sample)
+
+    return {
+        "counts": counts,
+        "outline_level_counts": dict(outline_levels),
+        "manual_numbering_counts": dict(manual_numbering),
+        "samples": samples,
+        "numbering_policy": (
+            "Literal Chinese/Arabic markers are treated as existing text and styled as paragraphs. "
+            "Word automatic numbering is detected and preserved; it is not regenerated automatically."
+        ),
+    }
+
+
+def compare_paragraph_control_diagnostics(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    before_counts = before.get("counts", {})
+    after_counts = after.get("counts", {})
+    changes = []
+    for key in PARAGRAPH_CONTROL_COUNT_KEYS:
+        if before_counts.get(key) != after_counts.get(key):
+            changes.append({"field": key, "before": before_counts.get(key), "after": after_counts.get(key)})
+    return {
+        "changed": bool(changes),
+        "changes": changes,
+        "before_counts": {key: before_counts.get(key) for key in PARAGRAPH_CONTROL_COUNT_KEYS},
+        "after_counts": {key: after_counts.get(key) for key in PARAGRAPH_CONTROL_COUNT_KEYS},
+    }
+
+
 def role_style_summary(
     items: list[ParagraphItem],
     roles: list[dict[str, Any]],
@@ -995,6 +1608,7 @@ def build_format_diagnostics(
         "page": page_diagnostics(document, preset),
         "headers_footers": header_footer_diagnostics(document),
         "role_style_summary": role_summary,
+        "paragraph_controls": paragraph_control_diagnostics(items, roles),
         "tables": table_diagnostics(document),
         "objects": object_diagnostics(document),
         "style_system": style_system_diagnostics(document),
@@ -1022,7 +1636,9 @@ def build_coverage(
     counts: dict[str, int],
     mode: str,
     diagnostics: dict[str, Any] | None,
+    format_actions: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    format_actions = format_actions or {}
     detected_roles = sorted(role for role in counts if role != "empty")
     formatted: list[dict[str, Any]] = []
     preserved: list[dict[str, Any]] = []
@@ -1036,6 +1652,7 @@ def build_coverage(
                 {"area": "headers_footers", "status": "diagnosed_only"},
                 {"area": "paragraph_roles", "status": "diagnosed_only", "roles": detected_roles},
                 {"area": "typography_and_paragraph_layout", "status": "diagnosed_only"},
+                {"area": "paragraph_controls", "status": "diagnosed_only"},
                 {"area": "tables", "status": "diagnosed_only", "count": len(document.tables)},
                 {
                     "area": "inline_images_or_objects",
@@ -1050,8 +1667,23 @@ def build_coverage(
                 {"area": "page_setup", "status": "formatted"},
                 {"area": "paragraph_roles", "status": "formatted", "roles": detected_roles},
                 {"area": "typography_and_paragraph_layout", "status": "formatted"},
+                {
+                    "area": "paragraph_controls",
+                    "status": "formatted",
+                    "note": "Safe pagination controls, widow control, and outline levels are applied to detected existing paragraphs.",
+                },
             ]
         )
+        table_actions = format_actions.get("tables", [])
+        if document.tables and table_actions:
+            formatted.append(
+                {
+                    "area": "table_structure",
+                    "status": "formatted",
+                    "count": len(document.tables),
+                    "note": "Existing table structure was normalized because --format-tables was used.",
+                }
+            )
         if document.tables:
             formatted.append(
                 {
@@ -1061,6 +1693,7 @@ def build_coverage(
                     "note": "Table paragraph text received body-style formatting where directly accessible.",
                 }
             )
+        if document.tables and not table_actions:
             preserved.append(
                 {
                     "area": "table_structure",
@@ -1078,10 +1711,71 @@ def build_coverage(
                 "status": "preserved",
                 "count": inline_shape_count,
                 "note": "Images, seals, charts, or embedded inline objects are preserved unless the user explicitly asks for repositioning.",
+                }
+            )
+
+    paragraph_controls = (
+        diagnostics.get("paragraph_controls")
+        if diagnostics
+        else paragraph_control_diagnostics(document_items(document), roles)
+    )
+    paragraph_control_counts = paragraph_controls.get("counts", {})
+    if paragraph_control_counts.get("word_numbering_paragraph_count"):
+        target_bucket = diagnosed_only if mode == "diagnose-only" else preserved
+        target_bucket.append(
+            {
+                "area": "word_automatic_numbering",
+                "status": "diagnosed_only" if mode == "diagnose-only" else "preserved",
+                "count": paragraph_control_counts.get("word_numbering_paragraph_count"),
+                "note": "Existing Word numbering is detected and kept; automatic numbering definitions are not regenerated.",
+            }
+        )
+    if paragraph_control_counts.get("manual_numbering_paragraph_count"):
+        target_bucket = diagnosed_only if mode == "diagnose-only" else formatted
+        target_bucket.append(
+            {
+                "area": "manual_numbering_text",
+                "status": "diagnosed_only" if mode == "diagnose-only" else "formatted",
+                "count": paragraph_control_counts.get("manual_numbering_paragraph_count"),
+                "manual_numbering_counts": paragraph_controls.get("manual_numbering_counts", {}),
+                "note": "Existing numbering markers such as 一、（一） and 1. are treated as text and styled with their paragraph role.",
+            }
+        )
+    if paragraph_control_counts.get("manual_bullet_paragraph_count"):
+        target_bucket = diagnosed_only if mode == "diagnose-only" else preserved
+        target_bucket.append(
+            {
+                "area": "manual_bullets",
+                "status": "diagnosed_only" if mode == "diagnose-only" else "preserved",
+                "count": paragraph_control_counts.get("manual_bullet_paragraph_count"),
+                "note": "Manual bullet markers are preserved as existing text.",
+            }
+        )
+    if paragraph_control_counts.get("tab_stop_paragraph_count"):
+        target_bucket = diagnosed_only if mode == "diagnose-only" else preserved
+        target_bucket.append(
+            {
+                "area": "tab_stops",
+                "status": "diagnosed_only" if mode == "diagnose-only" else "preserved",
+                "count": paragraph_control_counts.get("tab_stop_paragraph_count"),
+                "note": "Existing tab stops are preserved unless supplied by a template style.",
             }
         )
 
     header_footer = diagnostics.get("headers_footers") if diagnostics else header_footer_diagnostics(document)
+    page_field_count = sum(
+        int(section.get("page_field_count", 0))
+        for section in header_footer.get("sections", [])
+    )
+    if page_field_count:
+        target_bucket = diagnosed_only if mode == "diagnose-only" else formatted
+        target_bucket.append(
+            {
+                "area": "page_numbers",
+                "status": "diagnosed_only" if mode == "diagnose-only" else "formatted",
+                "page_field_count": page_field_count,
+            }
+        )
     header_footer_with_text = [
         section
         for section in header_footer.get("sections", [])
@@ -1102,6 +1796,8 @@ def build_coverage(
         for role in COMMON_REPORT_ROLES
         if role not in counts
     ]
+    if not page_field_count:
+        not_detected.append({"area": "page_numbers", "status": "not_detected"})
 
     for role_info in roles:
         if role_info.get("role") == "needs_review" or role_info.get("warnings"):
@@ -1140,6 +1836,7 @@ def extract_template_profile(template_path: Path, preset: str) -> dict[str, Any]
     profile: dict[str, Any] = {"roles": {}, "page": {}, "role_counts": counts, "diagnostics": diagnostics}
     if document.sections:
         section = document.sections[0]
+        doc_grid = safe_xpath(section._sectPr, "./w:docGrid")
         profile["page"] = {
             "width_mm": mm_value(section.page_width),
             "height_mm": mm_value(section.page_height),
@@ -1147,6 +1844,9 @@ def extract_template_profile(template_path: Path, preset: str) -> dict[str, Any]
             "bottom_mm": mm_value(section.bottom_margin),
             "left_mm": mm_value(section.left_margin),
             "right_mm": mm_value(section.right_margin),
+            "grid_type": doc_grid[0].get(qn("w:type")) if doc_grid else None,
+            "line_pitch_twips": doc_grid[0].get(qn("w:linePitch")) if doc_grid else None,
+            "char_space_twips": doc_grid[0].get(qn("w:charSpace")) if doc_grid else None,
         }
         profile["page"] = {k: v for k, v in profile["page"].items() if v is not None}
 
@@ -1357,6 +2057,8 @@ def build_report(
     items: list[ParagraphItem],
     content_preservation: dict[str, Any],
     coverage: dict[str, Any],
+    format_changes: dict[str, Any],
+    format_actions: dict[str, Any],
 ) -> dict[str, Any]:
     paragraph_reports = roles
     if include_text:
@@ -1383,6 +2085,8 @@ def build_report(
         "paragraph_count": len(items),
         "role_counts": counts,
         "content_preservation": content_preservation,
+        "format_changes": format_changes,
+        "format_actions": format_actions,
         "coverage": coverage,
         "paragraphs": paragraph_reports,
         "warnings": warnings,
@@ -1413,6 +2117,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--report", help="Optional JSON report path")
     parser.add_argument("--identify-only", action="store_true", help="Diagnose structure and formatting; do not save .docx")
     parser.add_argument("--diagnose-only", action="store_true", help="Alias for --identify-only")
+    parser.add_argument("--add-page-numbers", action="store_true", help="Explicitly add page-number fields to footers when missing")
+    parser.add_argument("--format-tables", action="store_true", help="Explicitly normalize existing table structure formatting")
     parser.add_argument("--include-text-in-report", action="store_true", help="Include full paragraph text in JSON report")
     return parser.parse_args()
 
@@ -1464,6 +2170,9 @@ def main() -> int:
     else:
         raise SystemExit(f"Unsupported input type: {suffix}. Use .docx, .md, .markdown, or .txt.")
     before_text_fingerprint = document_text_fingerprint(document)
+    before_page_diagnostics = page_diagnostics(document, args.preset)
+    before_roles, _ = classify_items(items, args.preset)
+    before_paragraph_controls = paragraph_control_diagnostics(items, before_roles)
 
     template_profile = None
     template_used = None
@@ -1480,16 +2189,41 @@ def main() -> int:
         style_notes = []
         diagnostics = build_format_diagnostics(document, items, roles, args.preset)
         mode = "diagnose-only"
+        page_number_actions = []
+        table_actions = []
         after_text_fingerprint = document_text_fingerprint(document)
+        after_page_diagnostics = page_diagnostics(document, args.preset)
+        after_paragraph_controls = paragraph_control_diagnostics(items, roles)
     else:
         roles, counts, style_notes = format_document(document, items, args.preset, template_profile)
+        page_number_actions = format_existing_page_numbers(document, args.preset)
+        if args.add_page_numbers:
+            page_number_actions.extend(add_page_numbers(document, args.preset))
+        table_actions = format_table_structures(document, args.preset) if args.format_tables else []
         after_text_fingerprint = document_text_fingerprint(document)
+        after_page_diagnostics = page_diagnostics(document, args.preset)
+        after_paragraph_controls = paragraph_control_diagnostics(items, roles)
         document.save(str(output_path))
         diagnostics = None
         mode = "template-replication" if template_profile else "format-only"
 
-    content_preservation = compare_text_fingerprints(before_text_fingerprint, after_text_fingerprint)
-    coverage = build_coverage(document, roles, counts, mode, diagnostics)
+    generated_page_number_actions = [
+        action for action in page_number_actions if action.get("action") == "added_page_number"
+    ]
+    content_preservation = compare_text_fingerprints(
+        before_text_fingerprint,
+        after_text_fingerprint,
+        generated_layout_elements=generated_page_number_actions,
+    )
+    format_changes = {
+        "page": compare_page_diagnostics(before_page_diagnostics, after_page_diagnostics),
+        "paragraph_controls": compare_paragraph_control_diagnostics(
+            before_paragraph_controls,
+            after_paragraph_controls,
+        ),
+    }
+    format_actions = {"page_numbers": page_number_actions, "tables": table_actions}
+    coverage = build_coverage(document, roles, counts, mode, diagnostics, format_actions=format_actions)
 
     report = build_report(
         source_name=source_name,
@@ -1505,6 +2239,8 @@ def main() -> int:
         items=items,
         content_preservation=content_preservation,
         coverage=coverage,
+        format_changes=format_changes,
+        format_actions=format_actions,
     )
     if args.report or diagnose_only:
         write_report(report, Path(args.report).resolve() if args.report else None)

@@ -118,8 +118,8 @@ Use this priority:
 
 Treat "format" as the full Word presentation and layout surface, not only title/body fonts.
 
-- Page: paper size, orientation, margins, gutter, sections, columns, document grid, page-number areas, header/footer distances.
-- Paragraph: alignment, first-line/left/right indentation, line spacing, before/after spacing, outline level, pagination controls, tab stops, bullets, and numbering.
+- Page: paper size, orientation, margins, gutter, sections, columns, document grid, text-area reference, existing page-number areas, header/footer distances, and page-level before/after changes.
+- Paragraph: alignment, first-line/left/right indentation, line spacing, before/after spacing, outline level, pagination controls, tab stops, bullets, and numbering. Treat literal markers like `一、`, `（一）`, and `1.` as existing text unless the user explicitly asks for Word automatic numbering.
 - Run/text: East Asian and Latin fonts, size, color, bold, italic, underline, strikethrough, emphasis marks, superscript/subscript, character spacing, highlight, and language attributes when available.
 - Existing structural roles: copy number, secrecy/urgency labels, issuer mark, document number, signer, title, subtitle, issue number, metadata, separator, article title, recipient, body, headings, attachment note, note, signature, date, cc, printing area, and version-record text.
 - Tables: width, column width, row height, cell margins, borders, shading, cell alignment, header rows, table text, and cross-page behavior when safely detectable.
@@ -197,7 +197,7 @@ Report these areas when available:
 - official/internal structure already present: likely 版头/主体/版记 or internal brief header components, reported as detected or not detected without filling absent content;
 - paragraph roles: title, issue number, metadata, article title, recipient, body, headings, attachment, note, signature, date, cc, printing/version-record text when detectable;
 - typography: East Asian/Latin font name, size, bold, italic, underline, strikethrough, color, highlight, and other run-level variants when available;
-- paragraph layout: first-line indent, left/right indent, line spacing, paragraph spacing, alignment, outline level, tab stops, numbering/bullets, and pagination controls when available;
+- paragraph layout: first-line indent, left/right indent, line spacing, paragraph spacing, alignment, outline level, tab stops, numbering/bullets, pagination controls, and `format_changes.paragraph_controls` when available;
 - hierarchy consistency: `一、`, `（一）`, `1.`, `（1）`;
 - objects: tables, images, seals, text boxes, shapes, watermarks, formulas, charts, separators, fields, comments, tracked changes, hyperlinks, footnotes/endnotes where detectable;
 - style system: style names, direct formatting, style variants, and conflicts;
@@ -251,12 +251,19 @@ python scripts/format_document.py target.docx --template sample.docx --output st
 python scripts/format_document.py --stdin --input-name draft.md --output formatted.docx --preset brief
 python scripts/format_document.py input.docx --diagnose-only --report diagnostics.json
 python scripts/format_document.py input.docx --identify-only --report diagnostics.json
+python scripts/format_document.py input.docx --output numbered.docx --preset formal --add-page-numbers --report report.json
+python scripts/format_document.py input.docx --output table-normalized.docx --preset formal --format-tables --report report.json
 ```
 
 Behavior:
 
 - Default to preserving text.
 - Report `content_preservation` and `coverage` when possible.
+- Report `format_changes.page` for page setup, text-area, and document-grid changes after formatting.
+- Report `format_changes.paragraph_controls` for keep-with-next, keep-together, widow control, outline levels, tab stops, and numbering/bullet diagnostics.
+- Format existing page-number fields when detected. Add page numbers only when the user explicitly asks and `--add-page-numbers` is used.
+- Format table text by default. Normalize table structure only when the user explicitly asks and `--format-tables` is used.
+- Preserve Word automatic numbering definitions and manual bullet markers by default; style literal heading numbers as part of the existing paragraph text.
 - Generate a `.docx` unless `--diagnose-only` / `--identify-only` is used.
 - Generate a JSON report when `--report` is provided.
 - Do not include full paragraph text in the report by default.

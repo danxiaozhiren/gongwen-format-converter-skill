@@ -9,7 +9,7 @@
     {
       "id": 2,
       "prompt": "这个 docx 内容已经定稿了，只帮我按正式公文习惯调格式：A4、页边距、标题、正文三号仿宋、一级标题黑体、二级标题楷体、首行缩进和固定行距。",
-      "expected_output": "Uses existing-content format-only mode with the formal preset, preserves text order and content, and produces a formatted .docx plus a concise coverage report."
+      "expected_output": "Uses existing-content format-only mode with the formal preset, preserves text order and content, applies page setup/document-grid and safe paragraph-control formatting where safe, formats existing page numbers if present, preserves literal numbering markers as text, and produces a formatted .docx plus content_preservation, format_changes.page, format_changes.paragraph_controls, and coverage reports."
     },
     {
       "id": 3,
@@ -24,7 +24,7 @@
     {
       "id": 5,
       "prompt": "先不要改文档，帮我诊断一下这份 docx 当前格式有哪些问题：页面、标题、正文、行距、缩进、颜色、下划线、表格图片都看一下。",
-      "expected_output": "Uses diagnostic mode only, does not save a formatted document, and produces a report covering page setup, headers/footers, paragraph roles, style variants, tables, objects, coverage statuses, content preservation, and differences from the selected preset."
+      "expected_output": "Uses diagnostic mode only, does not save a formatted document, and produces a report covering page setup, document grid, headers/footers, page-number fields, paragraph roles, style variants, paragraph controls, numbering/bullets, table structure diagnostics, objects, coverage statuses, content preservation, and differences from the selected preset."
     }
   ]
 }
