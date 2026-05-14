@@ -22,6 +22,7 @@ from typing import Any
 try:
     from docx import Document
     from docx.enum.section import WD_SECTION_START
+    from docx.enum.style import WD_STYLE_TYPE
     from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
@@ -31,6 +32,7 @@ except ModuleNotFoundError as exc:
         raise
     Document = None
     WD_SECTION_START = None
+    WD_STYLE_TYPE = None
     WD_ALIGN_PARAGRAPH = None
     WD_LINE_SPACING = None
     OxmlElement = None
@@ -87,6 +89,38 @@ def bool_or_none(value: Any) -> bool | None:
     if value is None:
         return None
     return bool(value)
+
+
+def enum_name(value: Any) -> str | None:
+    if value is None:
+        return None
+    name = getattr(value, "name", None)
+    if name:
+        return str(name)
+    return str(value)
+
+
+def safe_xpath(element: Any, expression: str) -> list[Any]:
+    if element is None:
+        return []
+    try:
+        return list(element.xpath(expression))
+    except Exception:
+        return []
+
+
+def safe_xpath_count(element: Any, expression: str) -> int:
+    return len(safe_xpath(element, expression))
+
+
+def xml_child_val(element: Any, path: str) -> str | None:
+    matches = safe_xpath(element, path)
+    if not matches:
+        return None
+    try:
+        return matches[0].get(qn("w:val"))
+    except Exception:
+        return None
 
 
 def require_docx() -> None:
@@ -519,9 +553,51 @@ def extract_run_font(run: Any) -> str | None:
     return run.font.name
 
 
+def extract_run_style(run: Any) -> dict[str, Any]:
+    style: dict[str, Any] = {}
+    font = extract_run_font(run)
+    if font:
+        style["font"] = font
+    if run.font.size is not None:
+        style["size"] = pt_value(run.font.size)
+    if run.font.bold is not None:
+        style["bold"] = bool(run.font.bold)
+    if run.font.italic is not None:
+        style["italic"] = bool(run.font.italic)
+    if run.font.underline is not None:
+        style["underline"] = bool(run.font.underline)
+    if run.font.strike is not None:
+        style["strikethrough"] = bool(run.font.strike)
+    if run.font.superscript:
+        style["vertical_align"] = "superscript"
+    elif run.font.subscript:
+        style["vertical_align"] = "subscript"
+    if run.font.all_caps is not None:
+        style["all_caps"] = bool(run.font.all_caps)
+    if run.font.small_caps is not None:
+        style["small_caps"] = bool(run.font.small_caps)
+    if run.font.highlight_color is not None:
+        style["highlight"] = enum_name(run.font.highlight_color)
+    if run.font.color is not None and run.font.color.rgb is not None:
+        style["color"] = str(run.font.color.rgb)
+    char_spacing = xml_child_val(run._element, "./w:rPr/w:spacing")
+    if char_spacing is not None:
+        style["character_spacing_twips"] = char_spacing
+    emphasis = xml_child_val(run._element, "./w:rPr/w:em")
+    if emphasis is not None:
+        style["emphasis_mark"] = emphasis
+    vanish = safe_xpath_count(run._element, "./w:rPr/w:vanish")
+    if vanish:
+        style["hidden"] = True
+    return style
+
+
 def extract_paragraph_style(paragraph: Any) -> dict[str, Any]:
     fmt = paragraph.paragraph_format
     style: dict[str, Any] = {}
+    if paragraph.style is not None:
+        style["style_name"] = paragraph.style.name
+        style["style_id"] = paragraph.style.style_id
     if paragraph.alignment is not None:
         reverse = {value: key for key, value in ALIGNMENTS.items()}
         style["align"] = reverse.get(paragraph.alignment)
@@ -537,34 +613,61 @@ def extract_paragraph_style(paragraph: Any) -> dict[str, Any]:
         style["space_before"] = pt_value(fmt.space_before)
     if fmt.space_after is not None:
         style["space_after"] = pt_value(fmt.space_after)
+    if fmt.keep_together is not None:
+        style["keep_together"] = bool(fmt.keep_together)
+    if fmt.keep_with_next is not None:
+        style["keep_with_next"] = bool(fmt.keep_with_next)
+    if fmt.page_break_before is not None:
+        style["page_break_before"] = bool(fmt.page_break_before)
+    if fmt.widow_control is not None:
+        style["widow_control"] = bool(fmt.widow_control)
+    outline_level = xml_child_val(paragraph._element, "./w:pPr/w:outlineLvl")
+    if outline_level is not None:
+        style["outline_level"] = outline_level
+    num_ids = safe_xpath(paragraph._element, "./w:pPr/w:numPr/w:numId")
+    if num_ids:
+        style["numbering"] = {
+            "num_id": num_ids[0].get(qn("w:val")),
+            "level": xml_child_val(paragraph._element, "./w:pPr/w:numPr/w:ilvl"),
+        }
+    tab_stops = []
+    try:
+        for tab in fmt.tab_stops:
+            tab_stops.append(
+                {
+                    "position_pt": pt_value(tab.position),
+                    "alignment": enum_name(tab.alignment),
+                    "leader": enum_name(tab.leader),
+                }
+            )
+    except Exception:
+        tab_stops = []
+    if tab_stops:
+        style["tab_stops"] = tab_stops
 
     for run in paragraph.runs:
         if run.text.strip():
-            font = extract_run_font(run)
-            if font:
-                style["font"] = font
-            if run.font.size is not None:
-                style["size"] = pt_value(run.font.size)
-            if run.font.bold is not None:
-                style["bold"] = bool(run.font.bold)
-            if run.font.italic is not None:
-                style["italic"] = bool(run.font.italic)
-            if run.font.underline is not None:
-                style["underline"] = bool(run.font.underline)
-            if run.font.color is not None and run.font.color.rgb is not None:
-                style["color"] = str(run.font.color.rgb)
+            style.update(extract_run_style(run))
             break
     return {k: v for k, v in style.items() if v is not None}
 
 
 def compact_style(style: dict[str, Any]) -> dict[str, Any]:
     keys = [
+        "style_name",
+        "style_id",
         "font",
         "size",
         "bold",
         "italic",
         "underline",
+        "strikethrough",
         "color",
+        "highlight",
+        "vertical_align",
+        "character_spacing_twips",
+        "emphasis_mark",
+        "hidden",
         "align",
         "first_indent",
         "left_indent",
@@ -572,6 +675,13 @@ def compact_style(style: dict[str, Any]) -> dict[str, Any]:
         "line",
         "space_before",
         "space_after",
+        "keep_together",
+        "keep_with_next",
+        "page_break_before",
+        "widow_control",
+        "outline_level",
+        "numbering",
+        "tab_stops",
     ]
     return {key: style.get(key) for key in keys if style.get(key) is not None}
 
@@ -584,6 +694,10 @@ def page_diagnostics(document: Any, preset: str) -> dict[str, Any]:
     sections = []
     expected = PRESETS[preset]["_page"]
     for idx, section in enumerate(document.sections):
+        sect_pr = section._sectPr
+        columns = safe_xpath(sect_pr, "./w:cols")
+        doc_grid = safe_xpath(sect_pr, "./w:docGrid")
+        gutter = getattr(section, "gutter", None)
         page = {
             "index": idx + 1,
             "width_mm": mm_value(section.page_width),
@@ -592,8 +706,18 @@ def page_diagnostics(document: Any, preset: str) -> dict[str, Any]:
             "bottom_margin_mm": mm_value(section.bottom_margin),
             "left_margin_mm": mm_value(section.left_margin),
             "right_margin_mm": mm_value(section.right_margin),
+            "gutter_mm": mm_value(gutter),
             "header_distance_mm": mm_value(section.header_distance),
             "footer_distance_mm": mm_value(section.footer_distance),
+            "different_first_page_header_footer": bool(section.different_first_page_header_footer),
+            "section_start_type": enum_name(section.start_type),
+            "column_count": columns[0].get(qn("w:num")) if columns else None,
+            "column_space_twips": columns[0].get(qn("w:space")) if columns else None,
+            "document_grid": {
+                "type": doc_grid[0].get(qn("w:type")),
+                "line_pitch": doc_grid[0].get(qn("w:linePitch")),
+                "char_space": doc_grid[0].get(qn("w:charSpace")),
+            } if doc_grid else None,
             "orientation": "landscape"
             if section.page_width and section.page_height and section.page_width > section.page_height
             else "portrait",
@@ -620,15 +744,50 @@ def page_diagnostics(document: Any, preset: str) -> dict[str, Any]:
 def header_footer_diagnostics(document: Any) -> dict[str, Any]:
     sections = []
     for idx, section in enumerate(document.sections):
-        header_text = " ".join(p.text.strip() for p in section.header.paragraphs if p.text.strip())
-        footer_text = " ".join(p.text.strip() for p in section.footer.paragraphs if p.text.strip())
+        header_parts = {
+            "default": section.header,
+            "first_page": section.first_page_header,
+            "even_page": section.even_page_header,
+        }
+        footer_parts = {
+            "default": section.footer,
+            "first_page": section.first_page_footer,
+            "even_page": section.even_page_footer,
+        }
+        header_details = {}
+        footer_details = {}
+        for name, part in header_parts.items():
+            paragraphs = [p for p in part.paragraphs if p.text.strip()]
+            header_details[name] = {
+                "has_text": bool(paragraphs),
+                "paragraph_count": len(paragraphs),
+            }
+        for name, part in footer_parts.items():
+            paragraphs = [p for p in part.paragraphs if p.text.strip()]
+            footer_details[name] = {
+                "has_text": bool(paragraphs),
+                "paragraph_count": len(paragraphs),
+            }
+        header_text = " ".join(
+            p.text.strip()
+            for part in header_parts.values()
+            for p in part.paragraphs
+            if p.text.strip()
+        )
+        footer_text = " ".join(
+            p.text.strip()
+            for part in footer_parts.values()
+            for p in part.paragraphs
+            if p.text.strip()
+        )
         sections.append(
             {
                 "index": idx + 1,
                 "has_header_text": bool(header_text),
                 "has_footer_text": bool(footer_text),
-                "header_paragraph_count": len([p for p in section.header.paragraphs if p.text.strip()]),
-                "footer_paragraph_count": len([p for p in section.footer.paragraphs if p.text.strip()]),
+                "different_first_page_header_footer": bool(section.different_first_page_header_footer),
+                "header_parts": header_details,
+                "footer_parts": footer_details,
             }
         )
     return {"sections": sections}
@@ -638,17 +797,48 @@ def table_diagnostics(document: Any) -> dict[str, Any]:
     tables = []
     for idx, table in enumerate(document.tables):
         sample_styles = []
+        row_heights = []
+        column_widths = []
+        cell_margins = []
+        header_row_count = 0
         for row in table.rows[:2]:
+            if row.height is not None:
+                row_heights.append(mm_value(row.height))
+            if safe_xpath_count(row._tr, "./w:trPr/w:tblHeader"):
+                header_row_count += 1
             for cell in row.cells[:3]:
+                if cell.width is not None:
+                    column_widths.append(mm_value(cell.width))
+                tc_mar = safe_xpath(cell._tc, "./w:tcPr/w:tcMar")
+                if tc_mar:
+                    margins = {}
+                    for side in ["top", "bottom", "left", "right"]:
+                        side_nodes = safe_xpath(tc_mar[0], f"./w:{side}")
+                        if side_nodes:
+                            margins[side] = side_nodes[0].get(qn("w:w"))
+                    if margins:
+                        cell_margins.append(margins)
                 for p in cell.paragraphs:
                     if p.text.strip():
                         sample_styles.append(compact_style(extract_paragraph_style(p)))
                         break
+        tbl_pr = table._tbl.tblPr
+        tbl_width = safe_xpath(tbl_pr, "./w:tblW")
+        tbl_borders = safe_xpath_count(tbl_pr, "./w:tblBorders/*")
         tables.append(
             {
                 "index": idx + 1,
                 "rows": len(table.rows),
                 "columns": len(table.columns),
+                "alignment": enum_name(table.alignment),
+                "autofit": bool(table.autofit),
+                "width_twips": tbl_width[0].get(qn("w:w")) if tbl_width else None,
+                "width_type": tbl_width[0].get(qn("w:type")) if tbl_width else None,
+                "border_element_count": tbl_borders,
+                "header_row_count_in_sample": header_row_count,
+                "sample_row_heights_mm": row_heights[:5],
+                "sample_cell_widths_mm": column_widths[:8],
+                "sample_cell_margins_twips": cell_margins[:3],
                 "sample_style_count": len(sample_styles),
                 "sample_styles": sample_styles[:3],
             }
@@ -658,9 +848,75 @@ def table_diagnostics(document: Any) -> dict[str, Any]:
 
 def object_diagnostics(document: Any) -> dict[str, Any]:
     inline_shapes = getattr(document, "inline_shapes", [])
+    inline_shape_details = []
+    for idx in range(min(len(inline_shapes), 10)):
+        shape = inline_shapes[idx]
+        inline_shape_details.append(
+            {
+                "index": idx + 1,
+                "type": enum_name(getattr(shape, "type", None)),
+                "width_mm": mm_value(getattr(shape, "width", None)),
+                "height_mm": mm_value(getattr(shape, "height", None)),
+            }
+        )
+    body = document._element.body
     return {
         "inline_shape_count": len(inline_shapes),
+        "inline_shape_samples": inline_shape_details,
+        "drawing_element_count": safe_xpath_count(body, ".//w:drawing"),
+        "legacy_pict_count": safe_xpath_count(body, ".//w:pict"),
+        "text_box_count": safe_xpath_count(body, ".//w:txbxContent"),
+        "watermark_like_shape_count": safe_xpath_count(body, ".//w:pict//v:shape"),
         "image_or_object_note": "Inline shapes may include images, seals, charts, or embedded objects; inspect manually before moving or resizing.",
+    }
+
+
+def style_system_diagnostics(document: Any) -> dict[str, Any]:
+    type_names = {}
+    builtin_count = 0
+    custom_count = 0
+    samples = []
+    for style in document.styles:
+        style_type = enum_name(style.type)
+        type_names[style_type] = type_names.get(style_type, 0) + 1
+        if style.builtin:
+            builtin_count += 1
+        else:
+            custom_count += 1
+        if len(samples) < 20:
+            samples.append(
+                {
+                    "name": style.name,
+                    "style_id": style.style_id,
+                    "type": style_type,
+                    "builtin": bool(style.builtin),
+                }
+            )
+    return {
+        "style_count": len(document.styles),
+        "builtin_style_count": builtin_count,
+        "custom_style_count": custom_count,
+        "style_type_counts": type_names,
+        "style_samples": samples,
+    }
+
+
+def special_state_diagnostics(document: Any) -> dict[str, Any]:
+    body = document._element.body
+    reltypes = [rel.reltype for rel in document.part.rels.values()]
+    return {
+        "comments_relationship_count": len([rel for rel in reltypes if "comments" in rel]),
+        "footnotes_relationship_count": len([rel for rel in reltypes if "footnotes" in rel]),
+        "endnotes_relationship_count": len([rel for rel in reltypes if "endnotes" in rel]),
+        "tracked_insertions": safe_xpath_count(body, ".//w:ins"),
+        "tracked_deletions": safe_xpath_count(body, ".//w:del"),
+        "field_simple_count": safe_xpath_count(body, ".//w:fldSimple"),
+        "field_char_count": safe_xpath_count(body, ".//w:fldChar"),
+        "hyperlink_count": safe_xpath_count(body, ".//w:hyperlink"),
+        "bookmark_count": safe_xpath_count(body, ".//w:bookmarkStart"),
+        "footnote_reference_count": safe_xpath_count(body, ".//w:footnoteReference"),
+        "endnote_reference_count": safe_xpath_count(body, ".//w:endnoteReference"),
+        "hidden_text_run_count": safe_xpath_count(body, ".//w:rPr/w:vanish"),
     }
 
 
@@ -729,6 +985,11 @@ def build_format_diagnostics(
         warnings.append("Tables detected; review table borders, widths, and header rows manually if strict formatting is required.")
     if getattr(document, "inline_shapes", []):
         warnings.append("Images or inline objects detected; preserve seals/images unless the user explicitly requests repositioning.")
+    special_state = special_state_diagnostics(document)
+    if special_state.get("tracked_insertions") or special_state.get("tracked_deletions"):
+        warnings.append("Tracked changes detected; preserve revisions unless the user explicitly requests accepting or rejecting them.")
+    if special_state.get("field_simple_count") or special_state.get("field_char_count"):
+        warnings.append("Field codes detected; verify generated tables of contents, dates, or references after formatting.")
 
     return {
         "page": page_diagnostics(document, preset),
@@ -736,17 +997,21 @@ def build_format_diagnostics(
         "role_style_summary": role_summary,
         "tables": table_diagnostics(document),
         "objects": object_diagnostics(document),
+        "style_system": style_system_diagnostics(document),
+        "special_state": special_state,
         "diagnostic_warnings": warnings,
         "diagnostic_scope": [
             "page setup",
             "headers and footers",
             "paragraph roles",
             "font family and size",
-            "bold italic underline color",
-            "indentation spacing alignment",
+            "bold italic underline strikethrough color highlight",
+            "indentation spacing alignment pagination controls tab stops numbering",
             "heading hierarchy",
             "tables",
             "inline images or objects",
+            "style system",
+            "comments tracked changes fields hyperlinks footnotes endnotes",
         ],
     }
 
