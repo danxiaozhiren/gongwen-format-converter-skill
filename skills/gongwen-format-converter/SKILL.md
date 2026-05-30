@@ -46,7 +46,7 @@ Use this short clarification:
 ```text
 这份材料我只处理已有内容的格式，不补写任何缺失公文要素。你想选哪一种？
 1. 现文格式化：内容不改，只调整已有文字、段落、页面、表格、图片、页眉页脚等格式。
-2. 现文格式诊断：不改文档，完整识别已有内容的页面、段落、文字、样式、表格、图片和对象格式状态。
+2. 现文格式诊断：不改文档，尽可能识别已有内容的页面、段落、文字、样式、表格、图片和对象格式状态，并说明覆盖边界。
 3. 现文模板套用：只学习模板样式并套到目标文档已有内容，不复制模板正文，也不补目标缺失内容。
 
 如果你不确定，我建议选 1「现文格式化」。
@@ -103,7 +103,7 @@ Include:
 - typography: fonts, sizes, bold/italic/underline/color for title, body, and heading levels;
 - paragraph layout: first-line indent, left/right indent, line spacing, paragraph spacing, alignment;
 - hierarchy and numbering: `一、`, `（一）`, `1.`, `（1）`;
-- objects and whole-document formatting: tables, images, seals, headers/footers, page numbers, separators, text boxes, shapes, styles, comments/revisions when detectable;
+- objects and whole-document coverage: tables, images, seals, headers/footers, page numbers, separators, text boxes, shapes, styles, comments/revisions when detectable;
 - coverage status: `formatted`, `preserved`, `diagnosed_only`, `not_detected`, `unsupported`, and `needs_review`.
 
 Use this priority:
@@ -114,9 +114,9 @@ Use this priority:
 4. Internal briefs use the brief preset but must be described as internal-office convention, not official GB/T compliance.
 5. Ambiguous existing items require a question when formatting would be risky; absent content elements are reported as `not_detected`, not filled. If the user says to proceed, use the closest preset for existing content and report the fallback.
 
-## Full Format Scope
+## Word Format Surface and Safety Boundary
 
-Treat "format" as the full Word presentation and layout surface, not only title/body fonts.
+Treat "format" as the full Word presentation and layout surface for diagnosis and coverage reporting, not only title/body fonts. Do not claim complete Word-format handling. Automatically modify only safe existing content; preserve or report objects and states that cannot be reliably edited.
 
 - Page: paper size, orientation, margins, gutter, sections, columns, document grid, text-area reference, existing page-number areas, header/footer distances, and page-level before/after changes.
 - Paragraph: alignment, first-line/left/right indentation, line spacing, before/after spacing, outline level, pagination controls, tab stops, bullets, and numbering. Treat literal markers like `一、`, `（一）`, and `1.` as existing text unless the user explicitly asks for Word automatic numbering.
@@ -128,7 +128,7 @@ Treat "format" as the full Word presentation and layout surface, not only title/
 - Style system: paragraph styles, character styles, heading styles, direct formatting conflicts, and style variants.
 - Special document state: comments, tracked changes, fields, table of contents, cross-references, footnotes/endnotes, hyperlinks, bookmarks, and hidden text.
 
-For each area, automatically format only safe existing content. Preserve and report anything risky, unsupported, or not reliably detectable.
+For each area, automatically format only safe existing content. Preserve and report anything risky, unsupported, or not reliably detectable. If asked whether the skill can fully process Word formatting, answer that it handles common 公文/内部简报 formatting and coverage diagnostics, but not complete Word object/style/rendering equivalence.
 
 ## Template Replication Rules
 

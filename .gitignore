@@ -4,6 +4,12 @@
 # Skill test outputs and local workspaces
 skills/*-workspace/
 
+# Generated fixture helper assets
+tests/fixtures/word_samples/_assets/
+
+# Local Python virtual environments
+.venv/
+
 # Python cache
 __pycache__/
 *.py[cod]

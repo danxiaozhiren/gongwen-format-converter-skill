@@ -25,7 +25,7 @@ try:
     from docx.enum.style import WD_STYLE_TYPE
     from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
     from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING, WD_TAB_ALIGNMENT, WD_TAB_LEADER
-    from docx.oxml import OxmlElement
+    from docx.oxml import OxmlElement, parse_xml
     from docx.oxml.ns import qn
     from docx.shared import Mm, Pt, RGBColor
 except ModuleNotFoundError as exc:
@@ -41,6 +41,7 @@ except ModuleNotFoundError as exc:
     WD_TAB_ALIGNMENT = None
     WD_TAB_LEADER = None
     OxmlElement = None
+    parse_xml = None
     qn = None
     Mm = None
     Pt = None
@@ -65,6 +66,13 @@ MANUAL_NUMBERING_PATTERNS = [
     ("paren_arabic", re.compile(r"^（\d+）")),
     ("circled_arabic", re.compile(r"^[①②③④⑤⑥⑦⑧⑨⑩]")),
 ]
+MANUAL_NUMBERING_LEVELS = {
+    "chinese_level_1": 1,
+    "chinese_level_2": 2,
+    "arabic_level_3": 3,
+    "paren_arabic": 4,
+    "circled_arabic": 3,
+}
 
 
 @dataclass
@@ -179,6 +187,12 @@ def manual_numbering_kind(text: str) -> str | None:
         if pattern.match(normalized):
             return kind
     return None
+
+
+def manual_numbering_level(kind: str | None) -> int | None:
+    if kind is None:
+        return None
+    return MANUAL_NUMBERING_LEVELS.get(kind)
 
 
 def is_short_title_like(text: str) -> bool:
@@ -603,11 +617,121 @@ def document_text_units(document: Any) -> list[dict[str, Any]]:
                             "text": paragraph.text,
                         }
                     )
+    for section_idx, section in enumerate(document.sections):
+        parts = {
+            ("header", "default"): section.header,
+            ("header", "first_page"): section.first_page_header,
+            ("header", "even_page"): section.even_page_header,
+            ("footer", "default"): section.footer,
+            ("footer", "first_page"): section.first_page_footer,
+            ("footer", "even_page"): section.even_page_footer,
+        }
+        for (part_type, part_name), part in parts.items():
+            for paragraph_idx, paragraph in enumerate(part.paragraphs):
+                units.append(
+                    {
+                        "identity": (
+                            f"sections[{section_idx}].{part_type}.{part_name}"
+                            f".paragraphs[{paragraph_idx}]"
+                        ),
+                        "scope": "header_footer_paragraph",
+                        "text": paragraph.text,
+                    }
+                )
+            units.extend(
+                text_box_text_units(
+                    part._element,
+                    f"sections[{section_idx}].{part_type}.{part_name}",
+                )
+            )
+    units.extend(text_box_text_units(document._element.body, "document"))
+    units.extend(related_text_part_units(document))
+    return units
+
+
+def related_text_part_scope(reltype: str) -> str | None:
+    if reltype.endswith("/comments"):
+        return "comments_paragraph"
+    if reltype.endswith("/footnotes"):
+        return "footnotes_paragraph"
+    if reltype.endswith("/endnotes"):
+        return "endnotes_paragraph"
+    return None
+
+
+def related_text_part_units(document: Any) -> list[dict[str, Any]]:
+    units = []
+    for rel in document.part.rels.values():
+        scope = related_text_part_scope(str(rel.reltype))
+        if scope is None:
+            continue
+        try:
+            part = rel.target_part
+        except Exception:
+            continue
+        element = getattr(part, "element", None)
+        if element is None:
+            element = getattr(part, "_element", None)
+        if element is None and parse_xml is not None:
+            try:
+                element = parse_xml(part.blob)
+            except Exception:
+                element = None
+        if element is None:
+            continue
+        part_name = str(getattr(part, "partname", scope))
+        paragraphs = safe_xpath(element, ".//w:p")
+        if not paragraphs and hasattr(element, "iter"):
+            paragraphs = list(element.iter(qn("w:p")))
+        for paragraph_idx, paragraph in enumerate(paragraphs):
+            units.append(
+                {
+                    "identity": f"{part_name}.paragraphs[{paragraph_idx}]",
+                    "scope": scope,
+                    "text": element_text(paragraph),
+                }
+            )
+        units.extend(text_box_text_units(element, part_name))
+    return units
+
+
+def element_text(element: Any) -> str:
+    texts = []
+    text_nodes = [*safe_xpath(element, ".//w:t"), *safe_xpath(element, ".//w:delText")]
+    if not text_nodes and hasattr(element, "iter"):
+        text_nodes = [
+            *list(element.iter(qn("w:t"))),
+            *list(element.iter(qn("w:delText"))),
+        ]
+    for node in text_nodes:
+        if node.text:
+            texts.append(node.text)
+    return "".join(texts)
+
+
+def text_box_text_units(element: Any, identity_prefix: str) -> list[dict[str, Any]]:
+    units = []
+    for box_idx, text_box in enumerate(safe_xpath(element, ".//w:txbxContent")):
+        paragraphs = safe_xpath(text_box, "./w:p") or safe_xpath(text_box, ".//w:p")
+        if not paragraphs and hasattr(text_box, "iter"):
+            paragraphs = list(text_box.iter(qn("w:p")))
+        for paragraph_idx, paragraph in enumerate(paragraphs):
+            units.append(
+                {
+                    "identity": (
+                        f"{identity_prefix}.text_boxes[{box_idx}]"
+                        f".paragraphs[{paragraph_idx}]"
+                    ),
+                    "scope": "text_box_paragraph",
+                    "text": element_text(paragraph),
+                }
+            )
     return units
 
 
 def document_text_fingerprint(document: Any) -> dict[str, Any]:
     units = document_text_units(document)
+    scope_counts = Counter(unit["scope"] for unit in units)
     unit_fingerprints = [
         {
             "identity": unit["identity"],
@@ -621,7 +745,11 @@ def document_text_fingerprint(document: Any) -> dict[str, Any]:
         json.dumps(unit_fingerprints, ensure_ascii=False, sort_keys=True).encode("utf-8")
     ).hexdigest()[:16]
     return {
-        "scope": "all body paragraph and table-cell paragraph text after input parsing",
+        "scope": (
+            "body paragraphs, table-cell paragraphs, header/footer paragraphs, "
+            "text-box paragraphs, comments, footnotes, and endnotes after input parsing"
+        ),
+        "scope_counts": dict(scope_counts),
         "unit_count": len(unit_fingerprints),
         "non_empty_unit_count": len([unit for unit in units if unit["text"].strip()]),
         "combined_hash": combined,
@@ -650,6 +778,7 @@ def compare_text_fingerprints(
     generated_layout_elements = generated_layout_elements or []
     return {
         "text_changed": before.get("combined_hash") != after.get("combined_hash"),
+        "text_unit_count_changed": before.get("unit_count") != after.get("unit_count"),
         "paragraph_or_table_text_unit_count_changed": before.get("unit_count") != after.get("unit_count"),
         "paragraph_order_changed": [
             unit.get("identity") for unit in before_units
@@ -662,6 +791,8 @@ def compare_text_fingerprints(
         "after_unit_count": after.get("unit_count"),
         "before_non_empty_unit_count": before.get("non_empty_unit_count"),
         "after_non_empty_unit_count": after.get("non_empty_unit_count"),
+        "before_scope_counts": before.get("scope_counts"),
+        "after_scope_counts": after.get("scope_counts"),
         "before_text_hash": before.get("combined_hash"),
         "after_text_hash": after.get("combined_hash"),
         "changed_unit_indexes": changed_indexes[:20],
@@ -1017,6 +1148,60 @@ def field_instructions(element: Any) -> list[str]:
     return instructions
 
 
+def field_type(instruction: str) -> str:
+    match = re.search(r"[A-Za-z]+", instruction.strip())
+    return match.group(0).upper() if match else "UNKNOWN"
+
+
+def field_category(field_name: str) -> str:
+    field_name = field_name.upper()
+    if field_name == "TOC":
+        return "table_of_contents"
+    if field_name == "PAGE":
+        return "page_number"
+    if field_name == "NUMPAGES":
+        return "total_pages"
+    if field_name in {"DATE", "TIME", "CREATEDATE", "SAVEDATE", "PRINTDATE"}:
+        return "date_time"
+    if field_name in {"REF", "PAGEREF", "NOTEREF"}:
+        return "cross_reference"
+    if field_name in {"HYPERLINK", "INCLUDEPICTURE", "INCLUDETEXT"}:
+        return "external_reference"
+    if field_name in {"AUTHOR", "FILENAME", "FILESIZE", "TITLE", "SUBJECT", "COMMENTS"}:
+        return "document_property"
+    return "other"
+
+
+def field_type_counts(instructions: list[str]) -> dict[str, int]:
+    return dict(Counter(field_type(instruction) for instruction in instructions))
+
+
+def field_category_counts(instructions: list[str]) -> dict[str, int]:
+    return dict(Counter(field_category(field_type(instruction)) for instruction in instructions))
+
+
+def field_instruction_details(
+    instructions: list[str],
+    *,
+    scope: str,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    details = []
+    for idx, instruction in enumerate(instructions[:limit], start=1):
+        name = field_type(instruction)
+        details.append(
+            {
+                "index": idx,
+                "scope": scope,
+                "field_type": name,
+                "category": field_category(name),
+                "instruction_hash": text_hash(instruction),
+                "instruction_length": len(instruction.strip()),
+            }
+        )
+    return details
+
+
 def field_count(instructions: list[str], field_name: str) -> int:
     pattern = re.compile(rf"\b{re.escape(field_name)}\b", re.IGNORECASE)
     return len([instruction for instruction in instructions if pattern.search(instruction)])
@@ -1033,6 +1218,8 @@ def header_footer_part_diagnostics(part: Any) -> dict[str, Any]:
         "has_text": bool(paragraphs),
         "paragraph_count": len(paragraphs),
         "field_instruction_count": len(instructions),
+        "field_type_counts": field_type_counts(instructions),
+        "field_category_counts": field_category_counts(instructions),
         "page_field_count": field_count(instructions, "PAGE"),
         "num_pages_field_count": field_count(instructions, "NUMPAGES"),
         "has_page_number_field": field_count(instructions, "PAGE") > 0,
@@ -1411,6 +1598,40 @@ def style_system_diagnostics(document: Any) -> dict[str, Any]:
 def special_state_diagnostics(document: Any) -> dict[str, Any]:
     body = document._element.body
     reltypes = [rel.reltype for rel in document.part.rels.values()]
+    body_field_instructions = field_instructions(body)
+    header_footer_field_instructions = [
+        instruction
+        for _, _, _, paragraph in iter_header_footer_paragraphs(document)
+        for instruction in field_instructions(paragraph._element)
+    ]
+    all_field_instructions = [*body_field_instructions, *header_footer_field_instructions]
+    field_diagnostics = {
+        "body": {
+            "instruction_count": len(body_field_instructions),
+            "type_counts": field_type_counts(body_field_instructions),
+            "category_counts": field_category_counts(body_field_instructions),
+            "samples": field_instruction_details(body_field_instructions, scope="body"),
+        },
+        "headers_footers": {
+            "instruction_count": len(header_footer_field_instructions),
+            "type_counts": field_type_counts(header_footer_field_instructions),
+            "category_counts": field_category_counts(header_footer_field_instructions),
+            "samples": field_instruction_details(header_footer_field_instructions, scope="headers_footers"),
+        },
+        "all": {
+            "instruction_count": len(all_field_instructions),
+            "type_counts": field_type_counts(all_field_instructions),
+            "category_counts": field_category_counts(all_field_instructions),
+            "samples": [
+                *field_instruction_details(body_field_instructions, scope="body", limit=10),
+                *field_instruction_details(header_footer_field_instructions, scope="headers_footers", limit=10),
+            ],
+        },
+        "notes": [
+            "Field instructions are reported by type and category only; full instruction text is omitted by default.",
+            "Field values may need updating in Word/WPS after formatting.",
+        ],
+    }
     return {
         "comments_relationship_count": len([rel for rel in reltypes if "comments" in rel]),
         "footnotes_relationship_count": len([rel for rel in reltypes if "footnotes" in rel]),
@@ -1419,6 +1640,13 @@ def special_state_diagnostics(document: Any) -> dict[str, Any]:
         "tracked_deletions": safe_xpath_count(body, ".//w:del"),
         "field_simple_count": safe_xpath_count(body, ".//w:fldSimple"),
         "field_char_count": safe_xpath_count(body, ".//w:fldChar"),
+        "body_field_instruction_count": len(body_field_instructions),
+        "header_footer_field_instruction_count": len(header_footer_field_instructions),
+        "all_field_instruction_count": len(all_field_instructions),
+        "body_field_type_counts": field_type_counts(body_field_instructions),
+        "header_footer_field_type_counts": field_type_counts(header_footer_field_instructions),
+        "all_field_type_counts": field_type_counts(all_field_instructions),
+        "field_diagnostics": field_diagnostics,
         "hyperlink_count": safe_xpath_count(body, ".//w:hyperlink"),
         "bookmark_count": safe_xpath_count(body, ".//w:bookmarkStart"),
         "footnote_reference_count": safe_xpath_count(body, ".//w:footnoteReference"),
@@ -1449,7 +1677,15 @@ def paragraph_control_diagnostics(
     counts["paragraph_count"] = len(items)
     outline_levels: Counter[str] = Counter()
     manual_numbering: Counter[str] = Counter()
+    manual_numbering_levels: Counter[str] = Counter()
+    manual_numbering_sequence: list[dict[str, Any]] = []
+    manual_hierarchy_warnings: list[dict[str, Any]] = []
+    word_numbering_num_ids: Counter[str] = Counter()
+    word_numbering_levels: Counter[str] = Counter()
+    word_numbering_pairs: Counter[str] = Counter()
+    word_numbering_samples: list[dict[str, Any]] = []
     samples = []
+    previous_manual_level: int | None = None
     for item, role_info in zip(items, roles):
         paragraph = item.paragraph
         if paragraph is None:
@@ -1481,13 +1717,54 @@ def paragraph_control_diagnostics(
             outline_levels[str(style["outline_level"])] += 1
         if style.get("tab_stops"):
             counts["tab_stop_paragraph_count"] += 1
-        if style.get("numbering"):
+        numbering = style.get("numbering")
+        if numbering:
             counts["word_numbering_paragraph_count"] += 1
+            num_id = str(numbering.get("num_id") or "unknown")
+            level = str(numbering.get("level") or "0")
+            pair_key = f"numId={num_id};level={level}"
+            word_numbering_num_ids[num_id] += 1
+            word_numbering_levels[level] += 1
+            word_numbering_pairs[pair_key] += 1
+            if len(word_numbering_samples) < 12:
+                word_numbering_samples.append(
+                    {
+                        "paragraph_index": role_info.get("index"),
+                        "role": role_info.get("role"),
+                        "hash": role_info.get("hash"),
+                        "num_id": num_id,
+                        "level": level,
+                    }
+                )
 
         manual_kind = manual_numbering_kind(item.text)
         if manual_kind:
             counts["manual_numbering_paragraph_count"] += 1
             manual_numbering[manual_kind] += 1
+            level = manual_numbering_level(manual_kind)
+            if level is not None:
+                manual_numbering_levels[str(level)] += 1
+                if previous_manual_level is not None and level - previous_manual_level > 1:
+                    manual_hierarchy_warnings.append(
+                        {
+                            "paragraph_index": role_info.get("index"),
+                            "hash": role_info.get("hash"),
+                            "previous_level": previous_manual_level,
+                            "current_level": level,
+                            "warning": "Manual numbering level jumps by more than one.",
+                        }
+                    )
+                previous_manual_level = level
+            if len(manual_numbering_sequence) < 30:
+                manual_numbering_sequence.append(
+                    {
+                        "paragraph_index": role_info.get("index"),
+                        "role": role_info.get("role"),
+                        "hash": role_info.get("hash"),
+                        "kind": manual_kind,
+                        "level": level,
+                    }
+                )
         normalized_text = normalize_text(item.text)
         bullet_like = bool(BULLET_RE.match(normalized_text)) and not SEPARATOR_RE.match(normalized_text)
         if bullet_like:
@@ -1510,6 +1787,13 @@ def paragraph_control_diagnostics(
         "counts": counts,
         "outline_level_counts": dict(outline_levels),
         "manual_numbering_counts": dict(manual_numbering),
+        "manual_numbering_level_counts": dict(manual_numbering_levels),
+        "manual_numbering_sequence": manual_numbering_sequence,
+        "manual_numbering_hierarchy_warnings": manual_hierarchy_warnings,
+        "word_numbering_num_id_counts": dict(word_numbering_num_ids),
+        "word_numbering_level_counts": dict(word_numbering_levels),
+        "word_numbering_pair_counts": dict(word_numbering_pairs),
+        "word_numbering_samples": word_numbering_samples,
         "samples": samples,
         "numbering_policy": (
             "Literal Chinese/Arabic markers are treated as existing text and styled as paragraphs. "

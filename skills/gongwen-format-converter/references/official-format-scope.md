@@ -149,9 +149,9 @@ Default policy:
 - Normalize table text to the body font when safe.
 - Ask before changing table borders, image placement, seal placement, or complex text boxes.
 
-### 10. Full Word Format Coverage
+### 10. Word Format Surface Coverage
 
-For strict existing-content formatting, cover the full Word formatting surface where detectable:
+For strict existing-content formatting, inspect and report the broad Word formatting surface where detectable, but automatically change only the safe subset that the script can handle reliably:
 
 - page and section setup;
 - paragraph and run formatting;
@@ -161,7 +161,7 @@ For strict existing-content formatting, cover the full Word formatting surface w
 - styles, direct-formatting conflicts, and style variants;
 - comments, tracked changes, fields, table of contents, hyperlinks, bookmarks, footnotes/endnotes, and hidden text.
 
-Automatically change only properties that are safe and within the user's selected format source. Preserve or diagnose the rest.
+Automatically change only properties that are safe and within the user's selected format source. Preserve or diagnose the rest. Do not describe this as complete Word-format processing, because complex objects, style inheritance, field updates, and rendered visual equivalence remain outside the current automatic scope.
 
 ## Format Source Priority
 
