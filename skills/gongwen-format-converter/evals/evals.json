@@ -3,13 +3,13 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "我有一份 Markdown 写的内部信息简报，内容别改，帮我生成一份适合内部流转的 Word 版式，标题、期号、正文、一级标题都要像正式简报。",
-      "expected_output": "Uses the brief preset, preserves source text and order, generates a .docx, reports content_preservation and coverage, and does not leak full source text."
+      "prompt": "这个 docx 内容已经定稿了，按默认行文检查版式调格式：页面、标题、正文、标题层级、行距、缩进、数字字母和页码都按默认模板来，内容不要改。",
+      "expected_output": "Uses existing-content format-only mode with the default formal 行文检查版式, preserves text order and content, applies page setup/document-grid, main title, body, heading hierarchy, Latin font, page-number formatting, and safe paragraph-control formatting where safe, and produces a formatted .docx plus top-level summary, content_preservation, format_changes.page, format_changes.paragraph_controls, role_counts, warnings, and coverage reports."
     },
     {
       "id": 2,
-      "prompt": "这个 docx 内容已经定稿了，只帮我按正式公文习惯调格式：A4、页边距、标题、正文三号仿宋、一级标题黑体、二级标题楷体、首行缩进和固定行距。",
-      "expected_output": "Uses existing-content format-only mode with the formal preset, preserves text order and content, applies page setup/document-grid and safe paragraph-control formatting where safe, formats existing page numbers if present, preserves literal numbering markers as text, and produces a formatted .docx plus content_preservation, format_changes.page, format_changes.paragraph_controls, and coverage reports."
+      "prompt": "我有一份 Markdown 写的内部文档，内容别改，帮我生成一份适合内部流转的 Word 版式，标题、期号、正文、一级标题都要像正式内部材料。",
+      "expected_output": "Uses the `brief` internal-document preset because the user explicitly asked for an internal document, preserves source text and order, generates a .docx, reports content_preservation and coverage, and does not leak full source text."
     },
     {
       "id": 3,

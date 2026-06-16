@@ -7,18 +7,18 @@ Classify paragraphs conservatively. The goal is to apply formatting without chan
 `main_title`
 
 - First short centered-looking paragraph in a `.docx`, or first Markdown `#` heading.
-- Often contains 文种 words such as 通知、请示、报告、函、纪要、简报.
-- For internal brief documents, the first line may be the brief name rather than the article title.
+- Often contains 文种 words such as 通知、请示、报告、函、纪要.
+- For internal documents, the first line may be the document name rather than the article title.
 
 `issue_number`
 
 - Short line matching `第X期`, `第 X 期`, or similar.
-- Common in internal briefs.
+- Common in internal documents.
 
 `metadata`
 
 - Short line near the top containing a publisher, department, date, or both.
-- Often appears after an issue number in an internal brief.
+- Often appears after an issue number in an internal document.
 
 `separator`
 
@@ -27,7 +27,7 @@ Classify paragraphs conservatively. The goal is to apply formatting without chan
 
 `article_title`
 
-- In internal briefs, a short title after the brief header and separator.
+- In internal documents, a short title after the document header and separator.
 - Usually centered in the source or visually distinct.
 
 `recipient`
@@ -76,7 +76,7 @@ Classify paragraphs conservatively. The goal is to apply formatting without chan
 ## Markdown Mapping
 
 - `#` maps to `main_title`.
-- `##` maps to `article_title` for brief preset, otherwise `heading_1` unless it is the first heading.
+- `##` maps to `article_title` for the `brief` internal-document preset, otherwise `heading_1` unless it is the first heading.
 - `###` maps to `heading_1` or `heading_2` depending on surrounding structure.
 - Plain paragraphs are classified by numbering and position.
 - Preserve list item text; remove Markdown list markers only if they are purely formatting and not part of the user's content.
@@ -96,8 +96,8 @@ Template replication should extract:
 
 - Page margins and paper size.
 - Representative font name, size, bold, italic, underline, font color, alignment, first-line indent, left/right indent, paragraph spacing, and line spacing by detected role.
-- Header-like sequence for internal briefs.
+- Header-like sequence for internal documents.
 
 It should not extract or report full template text by default.
 
-If the target document has roles not found in the template, mark those roles as fallback candidates. Prefer asking the user whether to use preset formatting, preserve target formatting, or define a custom style. If no confirmation is possible, use the relevant 公文/内部简报 preset and report the fallback.
+If the target document has roles not found in the template, mark those roles as fallback candidates. Prefer asking the user whether to use preset formatting, preserve target formatting, or define a custom style. If no confirmation is possible, use the relevant 公文/内部文档 preset and report the fallback.

@@ -37,7 +37,7 @@ class WordFixtureSmokeTest(unittest.TestCase):
     def test_generated_samples_emit_expected_diagnostics(self) -> None:
         self.assertEqual(check_word_samples.main(), 0)
 
-    def test_formal_default_uses_checklist_template(self) -> None:
+    def test_cli_default_uses_checklist_template(self) -> None:
         with TemporaryDirectory(prefix="gongwen-default-template-") as temp_dir:
             temp_path = Path(temp_dir)
             source = temp_path / "default-template.txt"
@@ -65,8 +65,6 @@ class WordFixtureSmokeTest(unittest.TestCase):
                     str(source),
                     "--output",
                     str(output),
-                    "--preset",
-                    "formal",
                     "--add-page-numbers",
                     "--report",
                     str(report),
@@ -76,6 +74,12 @@ class WordFixtureSmokeTest(unittest.TestCase):
             )
 
             data = json.loads(report.read_text(encoding="utf-8"))
+            self.assertEqual(data["preset"], "formal")
+            self.assertEqual(data["summary"]["format_source"], "default formal 行文检查版式")
+            self.assertIn("page_setup", data["summary"]["formatted_areas"])
+            self.assertEqual(data["summary"]["document_grid_reference"]["line_count"], 22)
+            self.assertEqual(data["summary"]["document_grid_reference"]["char_count"], 28)
+            self.assertTrue(data["summary"]["recommended_actions"])
             self.assertEqual(data["role_counts"]["heading_4"], 1)
 
             document = Document(str(output))

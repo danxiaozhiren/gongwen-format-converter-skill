@@ -1,21 +1,21 @@
 ---
 name: gongwen-format-converter
-description: Format Chinese official documents, internal briefs, meeting minutes, reports, notices, requests, and work-information drafts into polished .docx deliverables. Use this skill whenever the user wants to convert or clean up 公文、公文格式、内部简报、信息简报、会议简报、会议纪要、通知、请示、报告、函, especially when they say the content should not be rewritten and they only need fonts, spacing, heading levels, margins, indentation, page setup, or a Word/Markdown/plain-text draft turned into a formatted official-looking document.
+description: Format Chinese official documents, notices, requests, reports, letters, meeting minutes, internal documents, and work-information drafts into polished .docx deliverables. Default to the built-in 行文出手前对照检查事项 Word layout for format-only work. Use this skill whenever the user wants to convert or clean up 公文、公文格式、通知、请示、报告、函、会议纪要、内部文档、信息材料, especially when they say the content should not be rewritten and they only need fonts, spacing, heading levels, margins, indentation, page setup, or a Word/Markdown/plain-text draft turned into a formatted official-looking document.
 ---
 
 # Gongwen Format Converter
 
 ## Purpose
 
-Turn existing Chinese administrative writing into a formatted deliverable without changing the user's content. Apply official-document, internal-brief, or template rules only to content and objects that already exist in the source. Favor local processing, minimal disclosure, and reproducible .docx output.
+Turn existing Chinese administrative writing into a formatted deliverable without changing the user's content. Default to the built-in 行文出手前对照检查事项 Word layout for format-only work. Apply internal-document or supplied-template rules only when the user explicitly asks for them or provides a template. Favor local processing, minimal disclosure, and reproducible .docx output.
 
 Use this skill for:
 
-- Formatting an existing `.docx` while preserving its text.
-- Converting `.md`, `.txt`, or pasted text into a formatted `.docx`.
+- Formatting an existing `.docx` into the default 行文检查版式 while preserving its text.
+- Converting `.md`, `.txt`, or pasted text into a formatted `.docx` using the default 行文检查版式 unless another preset/template is explicit.
 - Diagnosing the whole document's structure and formatting before making changes.
 - Replicating the layout of an internal template without exposing the template content.
-- Producing a format-check report for 公文 or internal brief materials.
+- Producing a format-check report for 公文 or internal document materials.
 
 ## Agent Quick Path
 
@@ -23,13 +23,13 @@ Follow this path before reading deeper details:
 
 1. Determine the mode: `Format-only`, `Format-diagnostics`, or `Template-replication`. If the user only says "process this" or gives a file without intent, ask the clarification in Mode Selection.
 2. State the zero-change boundary: preserve existing content and objects; do not add missing official-document elements unless explicitly requested.
-3. Choose the format source: explicit user rules, supplied template, `formal`, or `brief`.
+3. Choose the format source: explicit user rules, supplied template, or the default `formal` 行文检查版式. Use `brief` only when the user explicitly asks for internal-document formatting.
 4. Read `references/official-format-scope.md` for formal/strict/GB/T work, `references/format-presets.md` for preset details, and `references/role-detection.md` when role classification is ambiguous.
 5. Before modifying a document in `Format-only`, give a short format plan unless the user already gave exact styles and told you to proceed.
 6. Run `scripts/format_document.py` with `--report` whenever possible. Prefer reports over quoting document text.
 7. For diagnostics, use `--diagnose-only` and do not create a formatted copy.
 8. For template replication, run `--extract-template` first, review uncovered roles with the user, then apply `--template` only after confirmation or explicit instruction to proceed.
-9. Inspect `content_preservation`, `coverage.summary`, `role_counts`, `warnings`, `format_changes.page`, and `format_changes.paragraph_controls` before responding.
+9. Inspect top-level `summary` first, then `content_preservation`, `coverage.summary`, `role_counts`, `warnings`, `format_changes.page`, and `format_changes.paragraph_controls` before responding.
 10. Deliver the output path, selected mode/preset/template basis, coverage summary, important warnings, and limitations.
 
 ## Interaction Protocol
@@ -40,7 +40,7 @@ Before any document-changing action, say:
 
 ```text
 当前步骤：格式计划确认
-我将做：按 [默认行文检查表 / 用户模板 / 用户指定规则] 处理已有内容的页面、字体、行距、标题层级、表格文字、页眉页脚和页码等安全格式。
+我将做：按 [默认行文检查版式 / 用户模板 / 用户指定规则] 处理已有内容的页面、字体、行距、标题层级、表格文字、页眉页脚和页码等安全格式。
 不会做：不改正文，不补写缺失公文要素，不移动或重排复杂对象，除非你明确要求。
 产出：格式化后的 .docx 和覆盖报告。
 下一步：你确认后我开始生成。
@@ -87,7 +87,7 @@ This rule has priority over all formatting presets and official-document referen
 
 ## Privacy Posture
 
-Treat all user-provided 公文, meeting, production, operating, personnel, finance, and internal brief materials as confidential by default.
+Treat all user-provided 公文, meeting, production, operating, personnel, finance, and internal document materials as confidential by default.
 
 - Do not browse the web for user document contents.
 - Do not quote internal source text in the response unless the user explicitly asks.
@@ -112,7 +112,7 @@ Use this short clarification:
 
 Infer the mode only when the user's wording is explicit:
 
-- "内容不要改/只调格式/套公文格式" means existing-content `Format-only`.
+- "内容不要改/只调格式/套公文格式/按默认格式" means existing-content `Format-only` with the default `formal` 行文检查版式 unless another template is explicit.
 - "先看看格式/诊断格式/识别段落和样式/哪些不规范" means existing-content `Format-diagnostics`.
 - "参考这份模板/复刻格式/套成同款" plus a template file means existing-content `Template-replication`.
 
@@ -142,15 +142,18 @@ Read `references/official-format-scope.md` first for formal 公文 work or whene
 
 Read `references/format-presets.md` when choosing or explaining formatting details.
 
-Default presets:
+Default preset:
 
-- `formal`: default 行文出手前检查表 template for formal 公文-style drafts, suitable for 通知、请示、报告、函、纪要 drafts.
-- `brief`: internal information brief style, suitable for 信息简报、会议简报、工作动态、生产经营分析会材料.
+- `formal`: default 行文出手前对照检查事项 Word layout, suitable for 通知、请示、报告、函、纪要 drafts.
+
+Secondary preset:
+
+- `brief`: internal document style, suitable for 信息材料、会议材料、工作动态、生产经营分析会材料. Use it only when the user explicitly asks for an internal document or passes `--preset brief`.
 
 The built-in `formal` default uses:
 
-- page: A4; margins top 37 mm, bottom 35 mm, left 27 mm, right 27 mm; 22 lines/page and 28 characters/line reference;
-- main title: 方正小标宋简体, 2号, not bold, centered; multi-line title spacing 36 pt and balanced trapezoid/diamond-like line breaks when safely controllable;
+- page: A4; margins top 37 mm, bottom 35 mm, left 27 mm, right 27 mm; 22 lines/page and 28 characters/line as a Word grid reference that still needs Word/WPS confirmation for strict visual use;
+- main title: 方正小标宋简体, 2号, not bold, centered; multi-line title spacing 36 pt; preserve existing title line breaks and flag line-balance review when needed;
 - title/body gap: one 3号-line equivalent, expressed as spacing rather than inserted content when possible;
 - body: 仿宋_GB2312, 3号, not bold, fixed line spacing 30 pt, first-line indent 2 Chinese characters;
 - headings: `一、` uses 黑体 3号 not bold; `（一）` uses 楷体_GB2312 3号 bold; `1.` and `（1）` use 仿宋_GB2312 3号 not bold;
@@ -164,7 +167,7 @@ Before changing a document in format-only mode, provide a concise format plan un
 
 Include:
 
-- format source: explicit user rules, user template, `formal` official-document preset, or `brief` internal-brief preset;
+- format source: explicit user rules, user template, default `formal` 行文检查版式, or explicit `brief` internal-document preset;
 - page setup: paper, margins, orientation, page-number policy;
 - official/document elements already present: title, recipient, body, attachments, signature/date, notes, copy/printing area when detected;
 - typography: fonts, sizes, bold/italic/underline/color for title, body, and heading levels;
@@ -177,25 +180,15 @@ Use this priority:
 
 1. User-specified formatting overrides everything.
 2. A supplied official/unit template overrides built-in presets.
-3. Formal 公文 uses the official-scope/formal preset.
-4. Internal briefs use the brief preset but must be described as internal-office convention, not official GB/T compliance.
+3. Otherwise use the default `formal` 行文检查版式.
+4. Internal documents use the `brief` preset only when explicit and must be described as internal-office convention, not official GB/T compliance.
 5. Ambiguous existing items require a question when formatting would be risky; absent content elements are reported as `not_detected`, not filled. If the user says to proceed, use the closest preset for existing content and report the fallback.
 
 ## Word Format Surface and Safety Boundary
 
-Treat "format" as the full Word presentation and layout surface for diagnosis and coverage reporting, not only title/body fonts. Do not claim complete Word-format handling. Automatically modify only safe existing content; preserve or report objects and states that cannot be reliably edited.
+Treat "format" as the full Word presentation and layout surface for diagnosis and coverage reporting, not only title/body fonts. Automatically modify only safe existing content: page setup, detected paragraph roles, run fonts/sizes, safe paragraph controls, table text, and existing page-number fields. Preserve or report risky structures such as images, seals, text boxes, shapes, comments, tracked changes, fields, TOC, footnotes/endnotes, bookmarks, style inheritance, and rendered visual equivalence.
 
-- Page: paper size, orientation, margins, gutter, sections, columns, document grid, text-area reference, existing page-number areas, header/footer distances, and page-level before/after changes.
-- Paragraph: alignment, first-line/left/right indentation, line spacing, before/after spacing, outline level, pagination controls, tab stops, bullets, and numbering. Treat literal markers like `一、`, `（一）`, and `1.` as existing text unless the user explicitly asks for Word automatic numbering.
-- Run/text: East Asian and Latin fonts, size, color, bold, italic, underline, strikethrough, emphasis marks, superscript/subscript, character spacing, highlight, and language attributes when available.
-- Existing structural roles: copy number, secrecy/urgency labels, issuer mark, document number, signer, title, subtitle, issue number, metadata, separator, article title, recipient, body, headings, attachment note, note, signature, date, cc, printing area, and version-record text.
-- Tables: width, column width, row height, cell margins, borders, shading, cell alignment, header rows, table text, and cross-page behavior when safely detectable.
-- Objects: images, seal images, text boxes, shapes, lines, charts, formulas, embedded objects, watermarks, and object anchors when safely detectable.
-- Headers/footers and version-record areas: header text/lines, footer text, page numbers, separator lines, cc/printing area formatting, and first-page/odd-even differences.
-- Style system: paragraph styles, character styles, heading styles, direct formatting conflicts, and style variants.
-- Special document state: comments, tracked changes, fields, table of contents, cross-references, footnotes/endnotes, hyperlinks, bookmarks, and hidden text.
-
-For each area, automatically format only safe existing content. Preserve and report anything risky, unsupported, or not reliably detectable. If asked whether the skill can fully process Word formatting, answer that it handles common 公文/内部简报 formatting and coverage diagnostics, but not complete Word object/style/rendering equivalence.
+Use `references/official-format-scope.md` for formal-document scope and `references/format-presets.md` for preset details. If asked whether the skill can fully process Word formatting, answer that it handles common 公文/内部文档 formatting and coverage diagnostics, but not complete Word object/style/rendering equivalence.
 
 ## Template Replication Rules
 
@@ -227,7 +220,7 @@ Extract and apply the template's page and paragraph style fingerprint, including
 
 If the target document contains an existing role that has no matching style in the template, do not silently invent a template style. Ask the user whether to:
 
-1. use the recommended 公文/内部简报 preset for that uncovered role;
+1. use the recommended 公文/内部文档 preset for that uncovered role;
 2. preserve the target document's existing formatting for that role;
 3. specify a custom style.
 
@@ -236,7 +229,7 @@ If the user wants you to continue without confirmation, choose the relevant pres
 For decorative or ambiguous elements such as underlines, colored text, separators, or unusual spacing:
 
 - preserve them when the template clearly uses them for the same role;
-- remove/normalize them when using the standard 公文/内部简报 fallback, because official-looking documents should avoid decorative formatting unless the unit template requires it;
+- remove/normalize them when using the standard 公文/内部文档 fallback, because official-looking documents should avoid decorative formatting unless the unit template requires it;
 - ask before making a one-off judgment when the user's intent is unclear.
 
 Use this confirmation prompt after Stage 1:
@@ -246,7 +239,7 @@ Use this confirmation prompt after Stage 1:
 目标文档中以下已有格式项模板未覆盖：[列出未覆盖角色或对象]。
 
 请选择未覆盖项处理方式：
-1. 使用公文/内部简报推荐格式；
+1. 使用公文/内部文档推荐格式；
 2. 保留目标文档原格式；
 3. 我指定自定义格式。
 
@@ -261,7 +254,7 @@ Report these areas when available:
 
 - page setup: paper size, orientation, margins, gutter, sections, columns, document grid where detectable, and differences from the selected preset;
 - headers and footers: whether header/footer text exists, first-page/odd-even differences, and whether existing page-number handling needs confirmation;
-- official/internal structure already present: likely 版头/主体/版记 or internal brief header components, reported as detected or not detected without filling absent content;
+- official/internal structure already present: likely 版头/主体/版记 or internal document header components, reported as detected or not detected without filling absent content;
 - paragraph roles: title, issue number, metadata, article title, recipient, body, headings, attachment, note, signature, date, cc, printing/version-record text when detectable;
 - typography: East Asian/Latin font name, size, bold, italic, underline, strikethrough, color, highlight, and other run-level variants when available;
 - paragraph layout: first-line indent, left/right indent, line spacing, paragraph spacing, alignment, outline level, tab stops, numbering/bullets, pagination controls, and `format_changes.paragraph_controls` when available;
@@ -315,32 +308,33 @@ Command selection:
 
 | User intent | Command pattern |
 | --- | --- |
-| Format an existing `.docx` with formal rules | `python scripts/format_document.py input.docx --output output.docx --preset formal --report report.json` |
-| Format Markdown/text as an internal brief | `python scripts/format_document.py draft.md --output formatted.docx --preset brief --report report.json` |
-| Diagnose only, no document changes | `python scripts/format_document.py input.docx --diagnose-only --preset formal --report diagnostics.json` |
-| Analyze a template before applying it | `python scripts/format_document.py --extract-template sample.docx --target target.docx --preset brief --report template_profile.json` |
-| Apply a confirmed template profile | `python scripts/format_document.py target.docx --template sample.docx --output styled.docx --preset brief --report report.json` |
-| Add missing page numbers by explicit request | `python scripts/format_document.py input.docx --output numbered.docx --preset formal --add-page-numbers --report report.json` |
-| Normalize table structure by explicit request | `python scripts/format_document.py input.docx --output table-normalized.docx --preset formal --format-tables --report report.json` |
+| Format an existing `.docx` with the default 行文检查版式 | `python scripts/format_document.py input.docx --output output.docx --report report.json` |
+| Format Markdown/text as an internal document | `python scripts/format_document.py draft.md --output formatted.docx --preset brief --report report.json` |
+| Diagnose only, no document changes, against the default template | `python scripts/format_document.py input.docx --diagnose-only --report diagnostics.json` |
+| Analyze a template before applying it | `python scripts/format_document.py --extract-template sample.docx --target target.docx --report template_profile.json` |
+| Apply a confirmed template profile | `python scripts/format_document.py target.docx --template sample.docx --output styled.docx --report report.json` |
+| Add missing page numbers by explicit request | `python scripts/format_document.py input.docx --output numbered.docx --add-page-numbers --report report.json` |
+| Normalize table structure by explicit request | `python scripts/format_document.py input.docx --output table-normalized.docx --format-tables --report report.json` |
 | Include full text in a report by explicit request | Add `--include-text-in-report`; otherwise omit it for privacy. |
 
 Examples:
 
 ```bash
-python scripts/format_document.py input.docx --output output.docx --preset formal --report report.json
+python scripts/format_document.py input.docx --output output.docx --report report.json
 python scripts/format_document.py draft.md --output formatted.docx --preset brief --report report.json
-python scripts/format_document.py --extract-template sample.docx --target target.docx --preset brief --report template_profile.json
+python scripts/format_document.py --extract-template sample.docx --target target.docx --report template_profile.json
 python scripts/format_document.py target.docx --template sample.docx --output styled.docx --report report.json
 python scripts/format_document.py --stdin --input-name draft.md --output formatted.docx --preset brief
 python scripts/format_document.py input.docx --diagnose-only --report diagnostics.json
 python scripts/format_document.py input.docx --identify-only --report diagnostics.json
-python scripts/format_document.py input.docx --output numbered.docx --preset formal --add-page-numbers --report report.json
-python scripts/format_document.py input.docx --output table-normalized.docx --preset formal --format-tables --report report.json
+python scripts/format_document.py input.docx --output numbered.docx --add-page-numbers --report report.json
+python scripts/format_document.py input.docx --output table-normalized.docx --format-tables --report report.json
 ```
 
 Behavior:
 
 - Default to preserving text.
+- Reports include a top-level `summary` for agent-facing status, format source, content status, covered areas, grid-reference note, and recommended next actions.
 - Report `content_preservation` and `coverage` when possible.
 - Report `format_changes.page` for page setup, text-area, and document-grid changes after formatting.
 - Report `format_changes.paragraph_controls` for keep-with-next, keep-together, widow control, outline levels, tab stops, and numbering/bullet diagnostics.
@@ -367,6 +361,7 @@ Failure handling:
 
 After processing, give the user:
 
+- The report `summary.status`, `summary.content_status`, and any `summary.recommended_actions` that matter.
 - The output file path.
 - The selected mode and preset/template basis.
 - A short coverage summary: what was formatted, preserved, diagnosed only, not detected, unsupported, and needs review.
@@ -379,5 +374,5 @@ Keep the response concise and avoid exposing internal text.
 
 - Do not rewrite, polish, summarize, delete, reorder, or add missing content in any mode.
 - Do not fabricate issuing authority, document number, dates, policy basis, leader opinions, attendance lists, attachments, recipients, signatures, seals, cc lines, printing areas, version records, or page numbers.
-- Do not claim strict legal compliance with a standard; describe the output as following common 公文/内部简报 formatting practice unless the user provides an official unit template.
+- Do not claim strict legal compliance with a standard; describe the output as following common 公文/内部文档 formatting practice unless the user provides an official unit template.
 - If the document contains tables, images, complex text boxes, comments, tracked changes, fields, or embedded objects, preserve them where possible and disclose any formatting limitations.

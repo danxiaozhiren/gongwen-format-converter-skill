@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Format Chinese official-document and internal-brief drafts as .docx files.
+"""Format Chinese official-document and internal-document drafts as .docx files.
 
 The script is intentionally conservative: it preserves paragraph text, applies
 role-based formatting, and keeps reports free of full paragraph content by
@@ -981,9 +981,35 @@ def style_signature(style: dict[str, Any]) -> str:
     return json.dumps(compact_style(style), ensure_ascii=False, sort_keys=True)
 
 
+def document_grid_reference(preset: str) -> dict[str, Any] | None:
+    page = PRESETS[preset].get("_page", {})
+    grid_keys = [
+        "grid_line_count",
+        "grid_char_count",
+        "line_pitch_twips",
+        "char_space_twips",
+    ]
+    if not any(page.get(key) is not None for key in grid_keys):
+        return None
+    return {
+        "line_count": page.get("grid_line_count"),
+        "char_count": page.get("grid_char_count"),
+        "grid_type": page.get("grid_type"),
+        "line_pitch_twips": page.get("line_pitch_twips"),
+        "char_space_twips": page.get("char_space_twips"),
+        "status": "reference_grid",
+        "note": (
+            "The formatter writes Word docGrid linePitch/charSpace when available. "
+            "Line and character counts are layout references, not a guaranteed rendered page count; "
+            "verify strict 22-line/28-character appearance in Word/WPS when required."
+        ),
+    }
+
+
 def page_diagnostics(document: Any, preset: str) -> dict[str, Any]:
     sections = []
     expected = PRESETS[preset]["_page"]
+    grid_reference = document_grid_reference(preset)
     for idx, section in enumerate(document.sections):
         sect_pr = section._sectPr
         columns = safe_xpath(sect_pr, "./w:cols")
@@ -1025,6 +1051,7 @@ def page_diagnostics(document: Any, preset: str) -> dict[str, Any]:
             "column_count": columns[0].get(qn("w:num")) if columns else None,
             "column_space_twips": columns[0].get(qn("w:space")) if columns else None,
             "document_grid": grid_info,
+            "document_grid_reference": grid_reference,
             "expected_page_setup": {
                 key: expected.get(key)
                 for key in [
@@ -2261,7 +2288,7 @@ def build_template_profile_report(
                     "role": "tables/images/page numbers",
                     "reason": "Template object styles can be listed, but target-specific treatment requires target inspection.",
                     "recommended_options": [
-                        "Use official/internal-brief recommendation",
+                        "Use official/internal-document recommendation",
                         "Preserve target formatting",
                         "Specify custom handling",
                     ],
@@ -2387,6 +2414,95 @@ def default_output_path(input_path: Path | None, input_name: str) -> Path:
     return Path(input_name).with_suffix("").with_name(Path(input_name).stem + "_formatted.docx")
 
 
+def coverage_area_names(entries: list[dict[str, Any]]) -> list[str]:
+    names = []
+    for entry in entries:
+        area = entry.get("area") or entry.get("role")
+        if area and area not in names:
+            names.append(str(area))
+    return names
+
+
+def content_status(content_preservation: dict[str, Any]) -> str:
+    changed = bool(
+        content_preservation.get("text_changed")
+        or content_preservation.get("text_unit_count_changed")
+        or content_preservation.get("paragraph_order_changed")
+    )
+    if not changed:
+        return "preserved"
+    if content_preservation.get("generated_missing_elements"):
+        return "changed_by_explicit_layout_addition"
+    return "changed"
+
+
+def report_format_source(preset: str, template_used: str | None) -> str:
+    if template_used:
+        return f"template:{template_used}"
+    if preset == "formal":
+        return "default formal 行文检查版式"
+    if preset == "brief":
+        return "explicit brief internal-document preset"
+    return preset
+
+
+def build_agent_summary(
+    *,
+    preset: str,
+    mode: str,
+    output: Path | None,
+    template_used: str | None,
+    content_preservation: dict[str, Any],
+    coverage: dict[str, Any],
+    warnings: list[str],
+) -> dict[str, Any]:
+    preservation_status = content_status(content_preservation)
+    needs_review = coverage.get("needs_review", [])
+    unsupported = coverage.get("unsupported", [])
+    recommended_actions: list[str] = []
+
+    if preservation_status == "changed":
+        status = "failed_content_preservation"
+        recommended_actions.append("Stop before delivering the formatted file; compare source and output text units.")
+    elif needs_review:
+        status = "needs_review"
+        recommended_actions.append("Confirm paragraphs marked needs_review before relying on their role formatting.")
+    else:
+        status = "ok"
+
+    if preservation_status == "changed_by_explicit_layout_addition":
+        recommended_actions.append("Content hash changed only with explicit generated layout elements; review generated_layout_elements.")
+    if unsupported:
+        recommended_actions.append(
+            "Note the unsupported automatic scope; manually review these areas only when the source contains such complex Word objects."
+        )
+    grid_reference = document_grid_reference(preset)
+    if grid_reference:
+        recommended_actions.append("Verify strict line/character grid appearance in Word/WPS when 22 lines and 28 characters per line matter.")
+    if mode == "diagnose-only":
+        recommended_actions.append("Use the diagnostic report to confirm a format-only run or template instructions before generating a .docx.")
+    if not recommended_actions:
+        recommended_actions.append("Review the coverage summary and open the output in Word/WPS for final visual confirmation.")
+
+    return {
+        "status": status,
+        "mode": mode,
+        "preset": preset,
+        "format_source": report_format_source(preset, template_used),
+        "output": str(output) if output else None,
+        "content_status": preservation_status,
+        "formatted_areas": coverage_area_names(coverage.get("formatted", [])),
+        "preserved_areas": coverage_area_names(coverage.get("preserved", [])),
+        "diagnosed_only_areas": coverage_area_names(coverage.get("diagnosed_only", [])),
+        "needs_review_count": len(needs_review),
+        "unsupported_areas": coverage_area_names(unsupported),
+        "not_detected_count": len(coverage.get("not_detected", [])),
+        "document_grid_reference": grid_reference,
+        "warning_count": len(warnings),
+        "recommended_actions": recommended_actions,
+    }
+
+
 def build_report(
     *,
     source_name: str,
@@ -2421,12 +2537,22 @@ def build_report(
     warnings.extend(style_notes)
     if diagnostics:
         warnings.extend(diagnostics.get("diagnostic_warnings", []))
+    summary = build_agent_summary(
+        preset=preset,
+        mode=mode,
+        output=output,
+        template_used=template_used,
+        content_preservation=content_preservation,
+        coverage=coverage,
+        warnings=warnings,
+    )
     return {
         "source": source_name,
         "mode": mode,
         "preset": preset,
         "template_used": template_used,
         "output": str(output) if output else None,
+        "summary": summary,
         "paragraph_count": len(items),
         "role_counts": counts,
         "content_preservation": content_preservation,
@@ -2455,7 +2581,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--stdin", action="store_true", help="Read Markdown/plain text from stdin")
     parser.add_argument("--input-name", default="stdin.txt", help="Virtual input name when using --stdin")
     parser.add_argument("--output", help="Output .docx path")
-    parser.add_argument("--preset", choices=sorted(PRESETS.keys()), default="brief")
+    parser.add_argument(
+        "--preset",
+        choices=sorted(PRESETS.keys()),
+        default="formal",
+        help="Formatting preset to apply; defaults to the formal 行文检查版式",
+    )
     parser.add_argument("--template", help="Optional .docx template to replicate")
     parser.add_argument("--extract-template", help="Only extract a .docx template style profile; do not format output")
     parser.add_argument("--target", help="Optional target file used with --extract-template for coverage analysis")

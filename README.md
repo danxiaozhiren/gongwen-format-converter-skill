@@ -1,8 +1,10 @@
-# 公文/内部简报格式处理 Skill
+# 默认行文检查版式 Word 格式处理 Skill
 
 `gongwen-format-converter` 是一个面向 Agent 的 Word 格式处理 Skill，适用于支持 Skills 或类似可扩展技能机制的智能体环境。
 
-它的核心用途是：**在不改写、不补写、不重排正文内容的前提下，把已有 `.docx`、Markdown、纯文本或粘贴材料整理成公文/内部简报风格的 Word 版式**。
+它的核心用途是：**在不改写、不补写、不重排正文内容的前提下，把已有 `.docx`、Markdown、纯文本或粘贴材料整理成默认“行文出手前对照检查事项”Word 版式**。
+
+默认格式是一套已固化的行文检查版式，包含 A4 页面、规范页边距、正文三号仿宋、标题层级、固定行距、页码等常用格式要求。内部文档、外部模板套用和其他格式规则仍然支持，但需要用户显式指定或提供模板，不作为主打默认路径。
 
 它不是公文内容生成器，也不是材料润色器，也不是完整 Word 排版引擎。它只处理已有内容和已有对象中可安全处理的格式；复杂对象默认诊断和保留。
 
@@ -55,7 +57,7 @@ $gongwen-format-converter
 
 模式：现文格式化
 输入文件：D:\path\材料.docx
-预设：formal
+预设：默认行文检查版式
 要求：内容不要改、不补写、不润色，只调整已有内容和对象的格式，并给出覆盖报告。
 ```
 
@@ -64,7 +66,7 @@ $gongwen-format-converter
 ```text
 $gongwen-format-converter
 
-这个 docx 内容已经定稿了，只帮我按正式公文习惯调格式，不要改正文，不要补缺失要素。
+这个 docx 内容已经定稿了，只帮我按默认行文检查版式调格式，不要改正文，不要补缺失要素。
 ```
 
 ```text
@@ -81,7 +83,7 @@ $gongwen-format-converter
 
 ## 它会做什么
 
-- 调整已有内容的 Word 版式：页面、页边距、版心、文档网格、字体、字号、颜色、行距、缩进、段前段后、标题层级等。
+- 按默认行文检查版式调整已有内容的 Word 版式：页面、页边距、版心、文档网格、字体、字号、颜色、行距、缩进、段前段后、标题层级等。
 - 识别并处理已有段落角色：标题、主送机关、正文、附件说明、落款、日期、附注、抄送、版记等。
 - 处理已有表格中的文字格式；在用户明确要求时，可进一步规范表格宽度、边框、单元格边距、垂直居中和跨页表头。
 - 诊断图片、印章、文本框、形状、页眉页脚、页码、批注、修订、域代码等对象和特殊状态；对高风险对象默认不主动重写。
@@ -116,20 +118,20 @@ $gongwen-format-converter
   - 全国标准信息公共服务平台：<https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=F3CC9BEF482524C895FDA7A08BB4A70E>
   - 该平台显示标准状态为“现行”，发布日期为 `2012-06-29`，实施日期为 `2012-07-01`。
 
-这个 Skill 的 `formal` 预设默认采用“行文出手前对照检查事项”模板，并结合正式公文排版习惯转化为可执行的 Word 格式处理规则，例如：
+这个 Skill 的默认预设就是 `formal`，采用“行文出手前对照检查事项”版式，并结合正式公文排版习惯转化为可执行的 Word 格式处理规则，例如：
 
-- A4 纸张，上 3.7cm、下 3.5cm、左 2.7cm、右 2.7cm 页边距，22 行/页、28 字/行参考。
-- 大标题为方正小标宋简体二号不加粗；多行标题按梯形/正菱形思路处理，不采用等长矩形或中间短的沙漏型。
+- A4 纸张，上 3.7cm、下 3.5cm、左 2.7cm、右 2.7cm 页边距，22 行/页、28 字/行作为 Word 文档网格参考。
+- 大标题为方正小标宋简体二号不加粗、居中；多行标题自动设置 36 磅固定行距，标题换行平衡需保留已有换行或结合模板/人工确认。
 - 正文为仿宋_GB2312 三号不加粗，全文固定行距 30 磅；大标题多行时固定行距 36 磅，大标题与正文间隔按一行三号字处理。
 - 一级标题黑体三号不加粗，二级标题楷体_GB2312 三号加粗，三级/四级标题仿宋_GB2312 三号不加粗。
 - 数字和字母使用 Times New Roman；页码使用宋体四号字。
 - 页眉页脚、页码、表格、图片对象和特殊状态按安全范围诊断、保留或格式化。
 
-注意：官方规范和默认检查表都只用于判断“已有元素应该如何排版”，不是用来让 Skill 自动补写缺失元素。实际单位模板、地方细则或用户给定模板与默认模板不一致时，优先按用户提供的模板和明确要求处理，并在报告中说明。
+注意：官方规范和默认行文检查版式都只用于判断“已有元素应该如何排版”，不是用来让 Skill 自动补写缺失元素。实际单位模板、地方细则或用户给定模板与默认模板不一致时，优先按用户提供的模板和明确要求处理，并在报告中说明。
 
 ## 格式覆盖范围
 
-详细状态矩阵见 [`docs/word-format-coverage.md`](docs/word-format-coverage.md)。当前项目的定位是“常见公文/简报 Word 安全格式整理”，不是 Word 全对象、全样式、全视觉效果的完整处理。
+详细状态矩阵见 [`docs/word-format-coverage.md`](docs/word-format-coverage.md)。当前项目的定位是“常见行文/内部文档 Word 安全格式整理”，不是 Word 全对象、全样式、全视觉效果的完整处理。
 
 | 类型 | 当前处理方式 |
 | --- | --- |
@@ -147,6 +149,7 @@ $gongwen-format-converter
 
 报告重点看这几项：
 
+- `summary`：面向 agent 的顶层摘要，说明整体状态、格式来源、输出文件、内容保持状态、已格式化/已保留/仅诊断范围、需人工确认数量、网格参考说明和下一步建议。
 - `content_preservation`：正文、表格、页眉页脚、文本框、批注、脚注和尾注文本是否保持不变。
 - `coverage`：哪些范围已格式化、已保留、仅诊断、未检测、暂不支持或需要人工确认。
 - `format_changes.page`：页面、版心、文档网格等页面级格式处理前后的变化。
@@ -156,6 +159,8 @@ $gongwen-format-converter
 
 报告默认不输出完整正文，避免泄露内部材料内容。
 
+说明：22 行/页、28 字/行会作为文档网格和版心参考写入报告和 `.docx`，但最终视觉效果仍受 Word/WPS、字体和兼容设置影响；严格场景需要打开成品文件做最终确认。
+
 ## 高级用法
 
 脚本依赖 `python-docx`。如需直接运行脚本，可先安装依赖：
@@ -164,12 +169,11 @@ $gongwen-format-converter
 python -m pip install -r skills\gongwen-format-converter\scripts\requirements.txt
 ```
 
-格式化文档：
+格式化文档（不传 `--preset` 时默认使用行文检查版式）：
 
 ```powershell
 python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料.docx `
   --output D:\path\材料_格式化.docx `
-  --preset formal `
   --report report.json
 ```
 
@@ -178,7 +182,6 @@ python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料
 ```powershell
 python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料.docx `
   --diagnose-only `
-  --preset formal `
   --report diagnostics.json
 ```
 
@@ -187,7 +190,6 @@ python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料
 ```powershell
 python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料.docx `
   --output D:\path\材料_带页码.docx `
-  --preset formal `
   --add-page-numbers `
   --report report.json
 ```
@@ -197,8 +199,16 @@ python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料
 ```powershell
 python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料.docx `
   --output D:\path\材料_表格规范.docx `
-  --preset formal `
   --format-tables `
+  --report report.json
+```
+
+内部文档等非默认场景需要显式指定：
+
+```powershell
+python skills\gongwen-format-converter\scripts\format_document.py D:\path\内部材料.md `
+  --output D:\path\内部材料_格式化.docx `
+  --preset brief `
   --report report.json
 ```
 
@@ -208,7 +218,6 @@ python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料
 python skills\gongwen-format-converter\scripts\format_document.py `
   --extract-template D:\path\模板.docx `
   --target D:\path\新材料.docx `
-  --preset brief `
   --report template_profile.json
 ```
 

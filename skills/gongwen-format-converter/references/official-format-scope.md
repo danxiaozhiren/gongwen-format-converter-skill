@@ -17,7 +17,7 @@ Scope of `GB/T 9704-2012`:
 - arrangement rules for official-document elements;
 - sample layouts.
 
-Do not present internal brief conventions as official law or mandatory GB/T rules. Internal briefs may refer to these rules for clean office-document presentation.
+Do not present internal document conventions as official law or mandatory GB/T rules. Internal documents may refer to these rules for clean office-document presentation.
 
 ## Existing-Content Application Rule
 
@@ -60,7 +60,7 @@ The formatter should not invent missing official elements. If a formal document 
 
 Use this checklist when creating a format plan or report. Apply automatic changes only to safe existing format properties; preserve and report risky or unsupported items.
 
-The built-in `formal` preset uses the user's default 行文出手前检查表 for routine formatting. If the user asks for a strict national-standard check, or provides a unit template, follow the Format Source Priority below and disclose any difference from the built-in default.
+The built-in `formal` preset uses the default 行文出手前对照检查事项 Word layout for routine formatting. If the user asks for a strict national-standard check, or provides a unit template, follow the Format Source Priority below and disclose any difference from the built-in default.
 
 ### 1. Paper and Page
 
@@ -72,7 +72,7 @@ The built-in `formal` preset uses the user's default 行文出手前检查表 fo
   - left margin: 27 mm;
   - right margin: 27 mm;
   - text area reference: 156 mm x 225 mm, excluding page number.
-- Line grid reference: normally 22 lines per page and 28 characters per line.
+- Line grid reference: normally 22 lines per page and 28 characters per line. The formatter records and writes this as a document-grid reference where safe; it is not a guaranteed rendered page count across Word/WPS/font environments.
 
 ### 2. Text Direction and Color
 
@@ -88,7 +88,7 @@ Use these defaults when no official unit template or user override is provided:
 | Role | Default Style |
 | --- | --- |
 | 发文机关标志 | 小标宋体, red, large display size according to template/standard layout |
-| 标题 | 2号方正小标宋简体; not bold; centered; multi-line titles should be balanced as trapezoid/diamond-like lines |
+| 标题 | 2号方正小标宋简体; not bold; centered; multi-line titles use fixed 36 pt spacing; line-break balance needs existing/manual/template confirmation |
 | 正文 | 3号仿宋_GB2312; justified; first-line indent 2 characters; fixed 30 pt line spacing |
 | 第一层标题 `一、` | 3号黑体; not bold |
 | 第二层标题 `（一）` | 3号楷体_GB2312; bold |
@@ -124,7 +124,7 @@ For formal documents, distinguish:
 - 版记: 抄送机关、印发机关和印发日期.
 - 页码: page number.
 
-Do not force a casual internal brief into a full 版头/版记 layout unless the user asks for formal 公文 output.
+Do not force a casual internal document into a full 版头/版记 layout unless the user asks for formal 公文 output.
 
 ### 6. Page Numbers, Headers, and Footers
 
@@ -176,7 +176,7 @@ Use this priority order:
 1. Explicit user instructions.
 2. Official unit template supplied by the user.
 3. `GB/T 9704-2012` formal preset for formal 公文.
-4. Internal brief preset that refers to formal-document typography but is marked as non-official.
+4. Internal document preset that refers to formal-document typography but is marked as non-official.
 5. Ask the user.
 
 If the user says to proceed without answering, use the relevant preset for existing content and report every fallback decision.

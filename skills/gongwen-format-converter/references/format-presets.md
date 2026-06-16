@@ -4,14 +4,14 @@ Use these presets as practical office-document formatting defaults. They are not
 
 ## Formal Preset
 
-Use for 通知、请示、报告、函、纪要 and other formal 公文-style drafts. The built-in default follows the user's 行文出手前检查表 unless a supplied unit template or explicit user instruction overrides it.
+Use as the primary default for routine formal-document formatting: 通知、请示、报告、函、纪要 and other 公文-style drafts. The built-in default follows the 行文出手前对照检查事项 Word layout unless a supplied unit template or explicit user instruction overrides it.
 
 Page:
 
 - Paper: A4.
 - Margins: top 37 mm, bottom 35 mm, left 27 mm, right 27 mm.
 - Text area reference: 156 mm x 225 mm.
-- Document grid reference: 22 lines per page and 28 characters per line where Word grid settings can be applied safely.
+- Document grid reference: 22 lines per page and 28 characters per line where Word grid settings can be applied safely. Treat these as layout references; strict rendered appearance still requires Word/WPS confirmation.
 - Body line rhythm: fixed line spacing 30 pt.
 - Main-title line rhythm: fixed line spacing 36 pt for multi-line titles.
 - Main-title-to-body gap: use one 3号-line equivalent when formatting can express it safely.
@@ -19,7 +19,7 @@ Page:
 Text:
 
 - Main title: 2号 方正小标宋简体, not bold, centered.
-- Multi-line main title: prefer balanced trapezoid/diamond-like line breaks; do not force an equal-width rectangle or a short-middle hourglass layout.
+- Multi-line main title: set centered text with fixed 36 pt line spacing. Preserve existing manual line breaks; do not claim automatic visual line balancing without a supplied template or manual review.
 - Body: 3号 仿宋_GB2312, black, justified, first-line indent 2 Chinese characters.
 - First-level heading `一、`: 3号 黑体, not bold.
 - Second-level heading `（一）`: 3号 楷体_GB2312, bold.
@@ -43,7 +43,7 @@ Paragraph:
 
 ## Brief Preset
 
-Use for internal 信息简报、会议简报、工作动态、生产经营分析会材料.
+Use for internal documents such as 信息材料、会议材料、工作动态、生产经营分析会材料.
 
 Page:
 
@@ -63,12 +63,12 @@ Text:
 - First-level heading: 3号 黑体.
 - Second-level heading: 3号 楷体_GB2312.
 - Third-level heading: 3号 仿宋_GB2312.
-- Use black text by default. Keep separator lines only when they are part of the brief header or source/template structure.
+- Use black text by default. Keep separator lines only when they are part of the internal document header or source/template structure.
 - Keep heading/article-title paragraphs with the following paragraph when safe; preserve existing Word numbering and manual bullets unless explicitly instructed otherwise.
 
 Structure:
 
-Typical internal brief order:
+Typical internal document order:
 
 1. Brief name
 2. Issue number
@@ -78,7 +78,7 @@ Typical internal brief order:
 6. Lead paragraph
 7. Body paragraphs and numbered requirements
 
-Do not force all internal briefs into this order. Preserve the user's paragraph order unless asked.
+Do not force all internal documents into this order. Preserve the user's paragraph order unless asked.
 
 ## Font Notes
 
