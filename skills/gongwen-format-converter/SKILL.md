@@ -17,6 +17,64 @@ Use this skill for:
 - Replicating the layout of an internal template without exposing the template content.
 - Producing a format-check report for 公文 or internal brief materials.
 
+## Agent Quick Path
+
+Follow this path before reading deeper details:
+
+1. Determine the mode: `Format-only`, `Format-diagnostics`, or `Template-replication`. If the user only says "process this" or gives a file without intent, ask the clarification in Mode Selection.
+2. State the zero-change boundary: preserve existing content and objects; do not add missing official-document elements unless explicitly requested.
+3. Choose the format source: explicit user rules, supplied template, `formal`, or `brief`.
+4. Read `references/official-format-scope.md` for formal/strict/GB/T work, `references/format-presets.md` for preset details, and `references/role-detection.md` when role classification is ambiguous.
+5. Before modifying a document in `Format-only`, give a short format plan unless the user already gave exact styles and told you to proceed.
+6. Run `scripts/format_document.py` with `--report` whenever possible. Prefer reports over quoting document text.
+7. For diagnostics, use `--diagnose-only` and do not create a formatted copy.
+8. For template replication, run `--extract-template` first, review uncovered roles with the user, then apply `--template` only after confirmation or explicit instruction to proceed.
+9. Inspect `content_preservation`, `coverage.summary`, `role_counts`, `warnings`, `format_changes.page`, and `format_changes.paragraph_controls` before responding.
+10. Deliver the output path, selected mode/preset/template basis, coverage summary, important warnings, and limitations.
+
+## Interaction Protocol
+
+Keep the user oriented before every meaningful step. Use short status blocks instead of long explanations.
+
+Before any document-changing action, say:
+
+```text
+当前步骤：格式计划确认
+我将做：按 [默认行文检查表 / 用户模板 / 用户指定规则] 处理已有内容的页面、字体、行距、标题层级、表格文字、页眉页脚和页码等安全格式。
+不会做：不改正文，不补写缺失公文要素，不移动或重排复杂对象，除非你明确要求。
+产出：格式化后的 .docx 和覆盖报告。
+下一步：你确认后我开始生成。
+```
+
+Before diagnostics, say:
+
+```text
+当前步骤：格式诊断
+我将做：只读取文档结构和格式，生成页面、段落、字体、表格、对象、页眉页脚、字段和特殊状态的诊断报告。
+不会做：不保存格式化副本，不改正文，不接受或拒绝修订。
+产出：诊断 JSON 或摘要报告。
+下一步：诊断完成后我会说明哪些可自动处理、哪些需要人工确认。
+```
+
+Before template replication, say:
+
+```text
+当前步骤：模板覆盖分析
+我将做：只提取模板的页面、字体、字号、行距、缩进、标题层级和对象覆盖情况，不复制模板正文。
+不会做：不会直接套用模板到目标文档，除非覆盖情况确认或你明确要求继续。
+产出：模板样式指纹、目标文档未覆盖项和处理建议。
+下一步：你确认未覆盖项处理方式后，我再生成套用模板的 Word。
+```
+
+While working, provide concise progress updates at these checkpoints:
+
+- mode selected and format source chosen;
+- command about to run, with output/report paths;
+- report read completed, including `content_preservation` result;
+- final file ready, including coverage summary and remaining limitations.
+
+If a step fails, say the failed step, the reason, what was not changed, and the next safe option. Do not continue into a riskier action silently.
+
 ## Content Zero-Change Rule
 
 This rule has priority over all formatting presets and official-document references.
@@ -86,8 +144,17 @@ Read `references/format-presets.md` when choosing or explaining formatting detai
 
 Default presets:
 
-- `formal`: formal 公文-style page setup and hierarchy, suitable for 通知、请示、报告、函、纪要 drafts.
+- `formal`: default 行文出手前检查表 template for formal 公文-style drafts, suitable for 通知、请示、报告、函、纪要 drafts.
 - `brief`: internal information brief style, suitable for 信息简报、会议简报、工作动态、生产经营分析会材料.
+
+The built-in `formal` default uses:
+
+- page: A4; margins top 37 mm, bottom 35 mm, left 27 mm, right 27 mm; 22 lines/page and 28 characters/line reference;
+- main title: 方正小标宋简体, 2号, not bold, centered; multi-line title spacing 36 pt and balanced trapezoid/diamond-like line breaks when safely controllable;
+- title/body gap: one 3号-line equivalent, expressed as spacing rather than inserted content when possible;
+- body: 仿宋_GB2312, 3号, not bold, fixed line spacing 30 pt, first-line indent 2 Chinese characters;
+- headings: `一、` uses 黑体 3号 not bold; `（一）` uses 楷体_GB2312 3号 bold; `1.` and `（1）` use 仿宋_GB2312 3号 not bold;
+- digits and Latin letters: Times New Roman; page numbers: 宋体 4号.
 
 If the user provides a template, prefer template replication over generic presets.
 
@@ -225,6 +292,7 @@ Common roles:
 - `heading_1`
 - `heading_2`
 - `heading_3`
+- `heading_4`
 - `attachment`
 - `signature`
 - `date`
@@ -240,6 +308,21 @@ If the local Python environment does not have `python-docx`, install the script 
 ```bash
 python -m pip install -r scripts/requirements.txt
 ```
+
+Run commands from the skill folder. If working from a repository root, prefix paths with `skills/gongwen-format-converter/`.
+
+Command selection:
+
+| User intent | Command pattern |
+| --- | --- |
+| Format an existing `.docx` with formal rules | `python scripts/format_document.py input.docx --output output.docx --preset formal --report report.json` |
+| Format Markdown/text as an internal brief | `python scripts/format_document.py draft.md --output formatted.docx --preset brief --report report.json` |
+| Diagnose only, no document changes | `python scripts/format_document.py input.docx --diagnose-only --preset formal --report diagnostics.json` |
+| Analyze a template before applying it | `python scripts/format_document.py --extract-template sample.docx --target target.docx --preset brief --report template_profile.json` |
+| Apply a confirmed template profile | `python scripts/format_document.py target.docx --template sample.docx --output styled.docx --preset brief --report report.json` |
+| Add missing page numbers by explicit request | `python scripts/format_document.py input.docx --output numbered.docx --preset formal --add-page-numbers --report report.json` |
+| Normalize table structure by explicit request | `python scripts/format_document.py input.docx --output table-normalized.docx --preset formal --format-tables --report report.json` |
+| Include full text in a report by explicit request | Add `--include-text-in-report`; otherwise omit it for privacy. |
 
 Examples:
 
@@ -270,6 +353,15 @@ Behavior:
 - Use `--include-text-in-report` only for non-sensitive samples or when the user explicitly asks.
 - In template mode, report any roles that fell back to a preset because the template did not contain a matching style.
 - In template replication work, prefer `--extract-template` first so the user can review covered styles and unresolved items before applying.
+
+Failure handling:
+
+- Missing `python-docx`: install `scripts/requirements.txt`, then rerun the same command.
+- Unavailable fonts such as `方正小标宋简体`, `仿宋_GB2312`, `楷体_GB2312`, or `Times New Roman`: still set the requested font names in `.docx`; warn that final rendering depends on the user's Word/WPS font environment.
+- Missing LibreOffice/OpenOffice renderer: do not block normal formatting or diagnostics; say render-level smoke checks were skipped unless the user requires them.
+- Protected, corrupt, or unsupported `.docx`: stop before rewriting content manually; report the file-level failure and ask for an unlocked/valid copy.
+- Documents with tracked changes, comments, fields, TOC, cross-references, footnotes, endnotes, floating text boxes, shapes, seals, or embedded objects: preserve and report them unless the user explicitly asks for a separate risky operation.
+- Content-preservation mismatch in the report: treat it as a failed formatting run. Do not deliver the formatted file as final until the cause is understood or the user accepts the risk.
 
 ## Deliverable Response
 

@@ -60,15 +60,17 @@ The formatter should not invent missing official elements. If a formal document 
 
 Use this checklist when creating a format plan or report. Apply automatic changes only to safe existing format properties; preserve and report risky or unsupported items.
 
+The built-in `formal` preset uses the user's default 行文出手前检查表 for routine formatting. If the user asks for a strict national-standard check, or provides a unit template, follow the Format Source Priority below and disclose any difference from the built-in default.
+
 ### 1. Paper and Page
 
 - Paper: A4, 210 mm x 297 mm.
 - Orientation: portrait unless the user or template explicitly requires otherwise.
-- Page margins / layout frame:
+- Built-in formal page margins / layout frame:
   - top margin: 37 mm;
   - bottom margin: 35 mm;
-  - left binding margin: 28 mm;
-  - right margin: 26 mm;
+  - left margin: 27 mm;
+  - right margin: 27 mm;
   - text area reference: 156 mm x 225 mm, excluding page number.
 - Line grid reference: normally 22 lines per page and 28 characters per line.
 
@@ -86,21 +88,25 @@ Use these defaults when no official unit template or user override is provided:
 | Role | Default Style |
 | --- | --- |
 | 发文机关标志 | 小标宋体, red, large display size according to template/standard layout |
-| 标题 | 2号小标宋体; centered; may wrap into trapezoid/diamond-like balanced lines |
-| 正文 | 3号仿宋体; justified; first-line indent 2 characters |
-| 第一层标题 `一、` | 3号黑体 |
-| 第二层标题 `（一）` | 3号楷体 |
-| 第三层标题 `1.` | 3号仿宋体 |
-| 第四层标题 `（1）` | 3号仿宋体 |
+| 标题 | 2号方正小标宋简体; not bold; centered; multi-line titles should be balanced as trapezoid/diamond-like lines |
+| 正文 | 3号仿宋_GB2312; justified; first-line indent 2 characters; fixed 30 pt line spacing |
+| 第一层标题 `一、` | 3号黑体; not bold |
+| 第二层标题 `（一）` | 3号楷体_GB2312; bold |
+| 第三层标题 `1.` | 3号仿宋_GB2312; not bold |
+| 第四层标题 `（1）` | 3号仿宋_GB2312; not bold |
 | 发文字号、主送机关、附件说明、署名、日期、附注、抄送、印发机关等 | usually 3号仿宋体 unless the template requires otherwise |
 | 签发人姓名 | usually 3号楷体 |
+| 数字及字母 | Times New Roman |
+| 页码 | 4号宋体 |
 
 If exact fonts are unavailable on the machine, still set the requested font names in the `.docx` and warn that rendering depends on local font installation.
 
 ### 4. Paragraph and Heading Hierarchy
 
 - Body paragraphs: first-line indent 2 Chinese characters.
-- Body line spacing: fixed line rhythm compatible with the 22 lines/page reference.
+- Body line spacing: fixed 30 pt, compatible with the 22 lines/page reference.
+- Multi-line main-title spacing: fixed 36 pt.
+- Main title to first body paragraph spacing: one 3号-line equivalent when safe to express as spacing rather than inserted content.
 - Heading sequence for body structure:
   - first level: `一、`
   - second level: `（一）`

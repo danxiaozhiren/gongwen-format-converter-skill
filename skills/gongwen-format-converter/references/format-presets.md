@@ -4,26 +4,32 @@ Use these presets as practical office-document formatting defaults. They are not
 
 ## Formal Preset
 
-Use for 通知、请示、报告、函、纪要 and other formal 公文-style drafts.
+Use for 通知、请示、报告、函、纪要 and other formal 公文-style drafts. The built-in default follows the user's 行文出手前检查表 unless a supplied unit template or explicit user instruction overrides it.
 
 Page:
 
 - Paper: A4.
-- Margins: top 37 mm, bottom 35 mm, left 28 mm, right 26 mm.
+- Margins: top 37 mm, bottom 35 mm, left 27 mm, right 27 mm.
 - Text area reference: 156 mm x 225 mm.
 - Document grid reference: 22 lines per page and 28 characters per line where Word grid settings can be applied safely.
-- Body line rhythm: fixed line spacing around 28 pt.
+- Body line rhythm: fixed line spacing 30 pt.
+- Main-title line rhythm: fixed line spacing 36 pt for multi-line titles.
+- Main-title-to-body gap: use one 3号-line equivalent when formatting can express it safely.
 
 Text:
 
-- Main title: 2号, 方正小标宋简体 when available, centered; fall back to 宋体 bold if needed.
+- Main title: 2号 方正小标宋简体, not bold, centered.
+- Multi-line main title: prefer balanced trapezoid/diamond-like line breaks; do not force an equal-width rectangle or a short-middle hourglass layout.
 - Body: 3号 仿宋_GB2312, black, justified, first-line indent 2 Chinese characters.
-- First-level heading `一、`: 3号 黑体.
-- Second-level heading `（一）`: 3号 楷体_GB2312.
-- Third-level heading `1.` or `1、`: 3号 仿宋_GB2312.
+- First-level heading `一、`: 3号 黑体, not bold.
+- Second-level heading `（一）`: 3号 楷体_GB2312, bold.
+- Third-level heading `1.` or `1、`: 3号 仿宋_GB2312, not bold.
+- Fourth-level heading `（1）`: 3号 仿宋_GB2312, not bold.
 - Recipient: 3号 仿宋_GB2312, left aligned, no first-line indent, ends with full-width colon when present.
 - Attachment line: 3号 仿宋_GB2312, first-line indent 2 Chinese characters.
 - Signature/date: 3号 仿宋_GB2312, right aligned.
+- Digits and Latin letters: Times New Roman.
+- Page numbers: 4号 宋体.
 
 Paragraph:
 

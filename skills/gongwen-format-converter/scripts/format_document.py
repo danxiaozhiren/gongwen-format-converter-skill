@@ -57,13 +57,14 @@ ISSUE_RE = re.compile(r"^第\s*[\d%s]+\s*期$" % CHINESE_NUM)
 H1_RE = re.compile(r"^[%s]+、" % CHINESE_NUM)
 H2_RE = re.compile(r"^（[%s]+）" % CHINESE_NUM)
 H3_RE = re.compile(r"^\d+\s*[.．、]")
+H4_RE = re.compile(r"^（\d+）")
 SEPARATOR_RE = re.compile(r"^[\-_—=─━]{3,}$")
 BULLET_RE = re.compile(r"^(?:[•·●○■□◆◇]\s*|-\s+)")
 MANUAL_NUMBERING_PATTERNS = [
     ("chinese_level_1", H1_RE),
     ("chinese_level_2", H2_RE),
     ("arabic_level_3", H3_RE),
-    ("paren_arabic", re.compile(r"^（\d+）")),
+    ("paren_arabic", H4_RE),
     ("circled_arabic", re.compile(r"^[①②③④⑤⑥⑦⑧⑨⑩]")),
 ]
 MANUAL_NUMBERING_LEVELS = {
@@ -227,6 +228,8 @@ def classify_paragraph(
         return "heading_2", warnings
     if H3_RE.match(text):
         return "heading_3", warnings
+    if H4_RE.match(text):
+        return "heading_4", warnings
 
     if text.startswith("附件"):
         return "attachment", warnings
@@ -319,39 +322,41 @@ PRESETS: dict[str, dict[str, dict[str, Any]]] = {
             "height_mm": 297,
             "top_mm": 37,
             "bottom_mm": 35,
-            "left_mm": 28,
-            "right_mm": 26,
+            "left_mm": 27,
+            "right_mm": 27,
             "text_area_width_mm": 156,
             "text_area_height_mm": 225,
             "grid_line_count": 22,
             "grid_char_count": 28,
             "grid_type": "linesAndChars",
-            "line_pitch_twips": 580,
+            "line_pitch_twips": 600,
             "char_space_twips": 316,
         },
         "main_title": {
             "font": "方正小标宋简体",
+            "latin_font": "Times New Roman",
             "size": 22,
             "bold": False,
             "align": "center",
             "first_indent": 0,
-            "line": 32,
-            "space_after": 0,
+            "line": 36,
+            "space_after": 30,
             "keep_together": True,
             "keep_with_next": True,
             "widow_control": True,
             "outline_level": "0",
         },
-        "subtitle": {"font": "楷体_GB2312", "size": 16, "align": "center", "first_indent": 0, "widow_control": True},
-        "recipient": {"font": "仿宋_GB2312", "size": 16, "align": "left", "first_indent": 0, "keep_with_next": True, "widow_control": True},
-        "body": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28, "widow_control": True},
-        "heading_1": {"font": "黑体", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "0"},
-        "heading_2": {"font": "楷体_GB2312", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "1"},
-        "heading_3": {"font": "仿宋_GB2312", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 28, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "2"},
-        "attachment": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28, "widow_control": True},
-        "signature": {"font": "仿宋_GB2312", "size": 16, "align": "right", "first_indent": 0, "line": 28, "widow_control": True},
-        "date": {"font": "仿宋_GB2312", "size": 16, "align": "right", "first_indent": 0, "line": 28, "widow_control": True},
-        "needs_review": {"font": "仿宋_GB2312", "size": 16, "align": "justify", "first_indent": 32, "line": 28, "widow_control": True},
+        "subtitle": {"font": "楷体_GB2312", "latin_font": "Times New Roman", "size": 16, "align": "center", "first_indent": 0, "line": 30, "widow_control": True},
+        "recipient": {"font": "仿宋_GB2312", "latin_font": "Times New Roman", "size": 16, "align": "left", "first_indent": 0, "line": 30, "keep_with_next": True, "widow_control": True},
+        "body": {"font": "仿宋_GB2312", "latin_font": "Times New Roman", "size": 16, "align": "justify", "first_indent": 32, "line": 30, "widow_control": True},
+        "heading_1": {"font": "黑体", "latin_font": "Times New Roman", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 30, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "0"},
+        "heading_2": {"font": "楷体_GB2312", "latin_font": "Times New Roman", "size": 16, "bold": True, "align": "justify", "first_indent": 32, "line": 30, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "1"},
+        "heading_3": {"font": "仿宋_GB2312", "latin_font": "Times New Roman", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 30, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "2"},
+        "heading_4": {"font": "仿宋_GB2312", "latin_font": "Times New Roman", "size": 16, "bold": False, "align": "justify", "first_indent": 32, "line": 30, "keep_together": True, "keep_with_next": True, "widow_control": True, "outline_level": "3"},
+        "attachment": {"font": "仿宋_GB2312", "latin_font": "Times New Roman", "size": 16, "align": "justify", "first_indent": 32, "line": 30, "widow_control": True},
+        "signature": {"font": "仿宋_GB2312", "latin_font": "Times New Roman", "size": 16, "align": "right", "first_indent": 0, "line": 30, "widow_control": True},
+        "date": {"font": "仿宋_GB2312", "latin_font": "Times New Roman", "size": 16, "align": "right", "first_indent": 0, "line": 30, "widow_control": True},
+        "needs_review": {"font": "仿宋_GB2312", "latin_font": "Times New Roman", "size": 16, "align": "justify", "first_indent": 32, "line": 30, "widow_control": True},
     },
     "brief": {
         "_page": {
@@ -394,6 +399,7 @@ COMMON_REPORT_ROLES = [
     "heading_1",
     "heading_2",
     "heading_3",
+    "heading_4",
     "attachment",
     "note",
     "signature",
@@ -421,16 +427,17 @@ LIMITED_FORMAT_AREAS = [
 ]
 
 
-def set_east_asia_font(run: Any, font_name: str) -> None:
-    run.font.name = font_name
+def set_east_asia_font(run: Any, font_name: str, latin_font_name: str | None = None) -> None:
+    latin_font = latin_font_name or font_name
+    run.font.name = latin_font
     rpr = run._element.get_or_add_rPr()
     rfonts = rpr.rFonts
     if rfonts is None:
         rfonts = OxmlElement("w:rFonts")
         rpr.append(rfonts)
     rfonts.set(qn("w:eastAsia"), font_name)
-    rfonts.set(qn("w:ascii"), font_name)
-    rfonts.set(qn("w:hAnsi"), font_name)
+    rfonts.set(qn("w:ascii"), latin_font)
+    rfonts.set(qn("w:hAnsi"), latin_font)
 
 
 def set_outline_level(paragraph: Any, level: Any) -> None:
@@ -495,13 +502,14 @@ def apply_style(paragraph: Any, style: dict[str, Any]) -> None:
         apply_tab_stops(paragraph, style["tab_stops"])
 
     font = style.get("font", "仿宋_GB2312")
+    latin_font = style.get("latin_font")
     size = style.get("size", 16)
     bold = style.get("bold")
     italic = style.get("italic", False)
     underline = style.get("underline", False)
     color = style.get("color", "000000")
     for run in paragraph.runs:
-        set_east_asia_font(run, font)
+        set_east_asia_font(run, font, latin_font)
         run.font.size = Pt(size)
         if bold is not None:
             run.font.bold = bool(bold)
@@ -1350,6 +1358,8 @@ def add_field(paragraph: Any, instruction: str) -> None:
 
 def page_number_style(preset: str) -> dict[str, Any]:
     base_font = PRESETS[preset].get("body", {}).get("font", "仿宋_GB2312")
+    if preset == "formal":
+        base_font = "宋体"
     return {
         "font": base_font,
         "size": 14,

@@ -47,6 +47,10 @@ Classify paragraphs conservatively. The goal is to apply formatting without chan
 
 - Starts with Arabic numbering such as `1.`, `1．`, `1、`.
 
+`heading_4`
+
+- Starts with parenthesized Arabic numbering such as `（1）`, `（2）`, `（3）`.
+
 `attachment`
 
 - Starts with `附件：`, `附件1：`, `附件：1.`, or similar.
