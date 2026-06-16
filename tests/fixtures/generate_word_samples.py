@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parent
 OUTPUT_DIR = ROOT / "word_samples"
 IMAGE_DIR = OUTPUT_DIR / "_assets"
 LOCK_PATH = Path(gettempdir()) / "gongwen-word-fixtures.lock"
+FIXED_ZIP_TIMESTAMP = (2020, 1, 1, 0, 0, 0)
 
 PNG_1X1_RED = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/ax"
@@ -55,6 +56,23 @@ def reset_output_dir() -> None:
         path.unlink()
     IMAGE_DIR.mkdir(exist_ok=True)
     (IMAGE_DIR / "seal-placeholder.png").write_bytes(PNG_1X1_RED)
+
+
+def normalize_docx_zip(path: Path) -> None:
+    rebuilt = path.with_suffix(".normalized.docx")
+    with zipfile.ZipFile(path, "r") as source, zipfile.ZipFile(
+        rebuilt,
+        "w",
+        compression=zipfile.ZIP_DEFLATED,
+    ) as target:
+        for source_info in sorted(source.infolist(), key=lambda info: info.filename):
+            data = source.read(source_info.filename)
+            target_info = zipfile.ZipInfo(source_info.filename, FIXED_ZIP_TIMESTAMP)
+            target_info.compress_type = zipfile.ZIP_DEFLATED
+            target_info.external_attr = source_info.external_attr
+            target_info.create_system = source_info.create_system
+            target.writestr(target_info, data)
+    shutil.move(rebuilt, path)
 
 
 def set_run_font(run, font: str = "仿宋_GB2312", size_pt: int = 16, bold: bool | None = None) -> None:
@@ -462,6 +480,8 @@ def generate_all() -> list[Path]:
             sample_comments_revisions_base(),
         ]
         add_comment_footnote_endnote_and_revision(paths[-1])
+        for path in paths:
+            normalize_docx_zip(path)
         return paths
 
 

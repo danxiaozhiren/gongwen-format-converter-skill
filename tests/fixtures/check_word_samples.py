@@ -38,6 +38,7 @@ EXPECTED_SIGNALS = {
         ("format_diagnostics", "special_state", "all_field_type_counts", "PAGE"): 1,
         ("format_diagnostics", "special_state", "field_diagnostics", "all", "type_counts", "NUMPAGES"): 1,
         ("format_diagnostics", "special_state", "field_diagnostics", "all", "category_counts", "total_pages"): 1,
+        ("format_diagnostics", "special_state", "field_update_risk_category_counts", "page_numbers"): 1,
         ("content_preservation", "before_scope_counts", "header_footer_paragraph"): 1,
     },
     "04-image-seal.docx": {
@@ -64,6 +65,9 @@ EXPECTED_SIGNALS = {
         ("format_diagnostics", "special_state", "field_diagnostics", "body", "category_counts", "table_of_contents"): 1,
         ("format_diagnostics", "special_state", "field_diagnostics", "body", "category_counts", "date_time"): 1,
         ("format_diagnostics", "special_state", "field_diagnostics", "body", "category_counts", "cross_reference"): 2,
+        ("format_diagnostics", "special_state", "field_update_risk_category_counts", "table_of_contents"): 1,
+        ("format_diagnostics", "special_state", "field_update_risk_category_counts", "date_time"): 1,
+        ("format_diagnostics", "special_state", "field_update_risk_category_counts", "cross_reference"): 1,
         ("format_diagnostics", "special_state", "bookmark_count"): 1,
     },
     "08-comments-revisions.docx": {

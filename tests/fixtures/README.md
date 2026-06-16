@@ -26,8 +26,11 @@ tests/fixtures/word_samples/
 
 ```bash
 make smoke-word
+make render-word
 make test
 ```
+
+`make render-word` 会在检测到 LibreOffice/OpenOffice 时把样例导出为 PDF 并做基础有效性检查；未检测到渲染器时默认跳过。可以通过 `WORD_RENDERER=/path/to/soffice make render-word` 指定渲染器，或用 `make render-word-required` 要求没有渲染器时失败。
 
 等价的 Python 标准库测试命令：
 

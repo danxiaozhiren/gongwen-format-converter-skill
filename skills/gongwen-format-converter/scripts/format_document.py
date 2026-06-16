@@ -1202,6 +1202,51 @@ def field_instruction_details(
     return details
 
 
+FIELD_UPDATE_RISK_RULES = [
+    {
+        "category": "table_of_contents",
+        "field_types": {"TOC"},
+        "warning": "TOC field detected; update fields in Word/WPS after formatting so the table of contents reflects current headings and page numbers.",
+    },
+    {
+        "category": "page_numbers",
+        "field_types": {"PAGE", "NUMPAGES"},
+        "warning": "PAGE/NUMPAGES fields detected; update fields in Word/WPS after formatting so page numbering reflects the final layout.",
+    },
+    {
+        "category": "date_time",
+        "field_types": {"DATE", "TIME", "CREATEDATE", "SAVEDATE", "PRINTDATE"},
+        "warning": "Date/time fields detected; update fields in Word/WPS after formatting if the displayed date/time should refresh.",
+    },
+    {
+        "category": "cross_reference",
+        "field_types": {"REF", "PAGEREF", "NOTEREF"},
+        "warning": "Cross-reference fields detected; update fields in Word/WPS after formatting so references and referenced page numbers are current.",
+    },
+]
+
+
+def field_update_risks(field_diagnostics: dict[str, Any]) -> list[dict[str, Any]]:
+    type_counts = field_diagnostics.get("all", {}).get("type_counts", {})
+    risks = []
+    for rule in FIELD_UPDATE_RISK_RULES:
+        matching_counts = {
+            field_type: type_counts.get(field_type)
+            for field_type in sorted(rule["field_types"])
+            if type_counts.get(field_type)
+        }
+        if not matching_counts:
+            continue
+        risks.append(
+            {
+                "category": rule["category"],
+                "field_type_counts": matching_counts,
+                "warning": rule["warning"],
+            }
+        )
+    return risks
+
+
 def field_count(instructions: list[str], field_name: str) -> int:
     pattern = re.compile(rf"\b{re.escape(field_name)}\b", re.IGNORECASE)
     return len([instruction for instruction in instructions if pattern.search(instruction)])
@@ -1632,6 +1677,7 @@ def special_state_diagnostics(document: Any) -> dict[str, Any]:
             "Field values may need updating in Word/WPS after formatting.",
         ],
     }
+    update_risks = field_update_risks(field_diagnostics)
     return {
         "comments_relationship_count": len([rel for rel in reltypes if "comments" in rel]),
         "footnotes_relationship_count": len([rel for rel in reltypes if "footnotes" in rel]),
@@ -1647,6 +1693,9 @@ def special_state_diagnostics(document: Any) -> dict[str, Any]:
         "header_footer_field_type_counts": field_type_counts(header_footer_field_instructions),
         "all_field_type_counts": field_type_counts(all_field_instructions),
         "field_diagnostics": field_diagnostics,
+        "field_update_risks": update_risks,
+        "field_update_risk_count": len(update_risks),
+        "field_update_risk_category_counts": dict(Counter(risk["category"] for risk in update_risks)),
         "hyperlink_count": safe_xpath_count(body, ".//w:hyperlink"),
         "bookmark_count": safe_xpath_count(body, ".//w:bookmarkStart"),
         "footnote_reference_count": safe_xpath_count(body, ".//w:footnoteReference"),
@@ -1887,6 +1936,8 @@ def build_format_diagnostics(
         warnings.append("Tracked changes detected; preserve revisions unless the user explicitly requests accepting or rejecting them.")
     if special_state.get("field_simple_count") or special_state.get("field_char_count"):
         warnings.append("Field codes detected; verify generated tables of contents, dates, or references after formatting.")
+    for risk in special_state.get("field_update_risks", []):
+        warnings.append(risk["warning"])
 
     return {
         "page": page_diagnostics(document, preset),

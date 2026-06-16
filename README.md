@@ -150,6 +150,7 @@ $gongwen-format-converter
 - `format_changes.page`：页面、版心、文档网格等页面级格式处理前后的变化。
 - `format_changes.paragraph_controls`：分页控制、大纲级别、制表位、编号/项目符号等段落控制项的变化；诊断报告还会列出 Word 自动编号的 `num_id`、层级分布，以及手写编号的层级分布和跳变提示。
 - `format_diagnostics.special_state.field_diagnostics`：字段类型和类别统计，例如 `TOC`、`PAGE`、`NUMPAGES`、`DATE`、`REF`、`PAGEREF`；默认只报告类型、类别和指令哈希，不输出完整字段指令。
+- `format_diagnostics.special_state.field_update_risks`：字段更新风险提示，例如目录、页码、日期和交叉引用在格式化后可能需要到 Word/WPS 中更新域。
 
 报告默认不输出完整正文，避免泄露内部材料内容。
 
@@ -215,9 +216,12 @@ python skills\gongwen-format-converter\scripts\format_document.py `
 
 ```bash
 make smoke-word
+make render-word
 make test
 make compile
 ```
+
+`make render-word` 是可选渲染 smoke check：需要本机安装 LibreOffice/OpenOffice，或通过 `WORD_RENDERER` 指定 `soffice` 路径；未检测到渲染器时会跳过。需要强制失败时使用 `make render-word-required`。
 
 样例和说明见 [`tests/fixtures/README.md`](tests/fixtures/README.md)。
 
