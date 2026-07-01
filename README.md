@@ -11,7 +11,7 @@
 请从这个路径安装主 skill：
 
 ```text
-https://github.com/danxiaozhiren/gongwen-format-converter-skill/tree/main/skills/format-xingwen-word
+https://github.com/danxiaozhiren/format-xingwen-word-skill/tree/main/skills/format-xingwen-word
 ```
 
 本地安装目录示例：
