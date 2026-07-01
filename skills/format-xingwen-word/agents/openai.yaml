@@ -1,0 +1,27 @@
+display_name: 行文检查版式 Word 助手
+short_description: 只处理已有 .docx，按行文检查清单调版式且不改内容。
+default_prompt: 这份 Word 帮我按“行文出手前对照检查事项”整理版式。内容不要改、不补写、不润色；请先说明你能做什么、当前准备做什么、下一步怎么处理，再生成输出文件和简短报告。
+keywords:
+  - 行文检查
+  - 公文格式
+  - Word排版
+  - docx
+  - 通知
+  - 请示
+  - 报告
+  - 函
+  - 会议纪要
+  - 内容不要改
+when_to_use:
+  - 用户提供已有 .docx，要求按行文出手前检查事项、公文格式或类似单位要求整理版式。
+  - 用户强调内容已定稿、不要改正文，只需要调整字体、字号、行距、缩进、页边距、标题层级、页码或表格格式。
+  - 用户需要先诊断 Word 当前格式问题，并希望得到报告而不是直接改文档。
+examples:
+  - prompt: 这份 Word 帮我处理一下，内容不要改。
+    intent: clarify-format-or-diagnose
+  - prompt: 这份通知内容不要改，按行文检查版式整理成 Word。
+    intent: format-only
+  - prompt: 先不要生成新文件，帮我诊断这份 docx 的页面、标题、正文和表格格式。
+    intent: diagnose-only
+  - prompt: 给这份 Word 加页码并按行文检查清单排版，正文不要动。
+    intent: format-only-with-page-numbers

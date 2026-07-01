@@ -1,0 +1,107 @@
+{
+  "document_grid": {
+    "char_space": "316",
+    "line_pitch": "600",
+    "type": "linesAndChars"
+  },
+  "page": {
+    "bottom": "1984",
+    "height": "16838",
+    "left": "1531",
+    "right": "1531",
+    "top": "2098",
+    "width": "11906"
+  },
+  "paragraphs": [
+    {
+      "align": "center",
+      "first_line_indent": "0",
+      "line": "720",
+      "outline_level": "0",
+      "run": {
+        "ascii": "Times New Roman",
+        "bold": false,
+        "eastAsia": "方正小标宋简体",
+        "hAnsi": "Times New Roman",
+        "size_half_points": "44"
+      },
+      "space_after": "600",
+      "text": "关于开展黄金样例检查工作的通知"
+    },
+    {
+      "align": "left",
+      "first_line_indent": "0",
+      "line": "600",
+      "outline_level": null,
+      "run": {
+        "ascii": "Times New Roman",
+        "bold": false,
+        "eastAsia": "仿宋_GB2312",
+        "hAnsi": "Times New Roman",
+        "size_half_points": "32"
+      },
+      "space_after": "0",
+      "text": "各部门："
+    },
+    {
+      "align": "both",
+      "first_line_indent": "640",
+      "line": "600",
+      "outline_level": null,
+      "run": {
+        "ascii": "Times New Roman",
+        "bold": false,
+        "eastAsia": "仿宋_GB2312",
+        "hAnsi": "Times New Roman",
+        "size_half_points": "32"
+      },
+      "space_after": "0",
+      "text": "正文内容包含 ABC123，用于检查数字和字母字体。"
+    },
+    {
+      "align": "both",
+      "first_line_indent": "640",
+      "line": "600",
+      "outline_level": "0",
+      "run": {
+        "ascii": "Times New Roman",
+        "bold": false,
+        "eastAsia": "黑体",
+        "hAnsi": "Times New Roman",
+        "size_half_points": "32"
+      },
+      "space_after": "0",
+      "text": "一、一级标题"
+    },
+    {
+      "align": "both",
+      "first_line_indent": "640",
+      "line": "600",
+      "outline_level": "1",
+      "run": {
+        "ascii": "Times New Roman",
+        "bold": true,
+        "eastAsia": "楷体_GB2312",
+        "hAnsi": "Times New Roman",
+        "size_half_points": "32"
+      },
+      "space_after": "0",
+      "text": "（一）二级标题"
+    },
+    {
+      "align": "both",
+      "first_line_indent": "640",
+      "line": "600",
+      "outline_level": "2",
+      "run": {
+        "ascii": "Times New Roman",
+        "bold": false,
+        "eastAsia": "仿宋_GB2312",
+        "hAnsi": "Times New Roman",
+        "size_half_points": "32"
+      },
+      "space_after": "0",
+      "text": "1. 三级标题"
+    }
+  ]
+}

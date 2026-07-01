@@ -1,1 +1,1 @@
-"""Test package for gongwen-format-converter."""
+"""Test package for format-xingwen-word."""

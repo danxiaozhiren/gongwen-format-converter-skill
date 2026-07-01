@@ -1,257 +1,157 @@
-# 默认行文检查版式 Word 格式处理 Skill
+# format-xingwen-word
 
-`gongwen-format-converter` 是一个面向 Agent 的 Word 格式处理 Skill，适用于支持 Skills 或类似可扩展技能机制的智能体环境。
+`format-xingwen-word` 是一个面向 Agent 的 Word-only Skill。它专注一个场景：用户已有 `.docx` 内容定稿后，按“行文出手前对照检查事项”整理版式，**不改写、不补写、不润色、不重排正文内容**。
 
-它的核心用途是：**在不改写、不补写、不重排正文内容的前提下，把已有 `.docx`、Markdown、纯文本或粘贴材料整理成默认“行文出手前对照检查事项”Word 版式**。
+早期实验名是 `gongwen-format-converter`。当前版本已作为新的 Word-only skill 收敛为 `format-xingwen-word`，不再维护旧入口，也不再承载 Markdown、纯文本、模板套用等泛化能力。
 
-默认格式是一套已固化的行文检查版式，包含 A4 页面、规范页边距、正文三号仿宋、标题层级、固定行距、页码等常用格式要求。内部文档、外部模板套用和其他格式规则仍然支持，但需要用户显式指定或提供模板，不作为主打默认路径。
+迁移说明：旧目录下的 `evals/`、`references/` 和 `scripts/` 已迁入 `skills/format-xingwen-word/` 并按 Word-only 场景重整。旧 `format-presets.md`、`official-format-scope.md` 不再保留为主能力资料；固定清单规则集中在 `references/checklist-format.md`，角色识别规则集中在 `references/role-detection.md`。
 
-它不是公文内容生成器，也不是材料润色器，也不是完整 Word 排版引擎。它只处理已有内容和已有对象中可安全处理的格式；复杂对象默认诊断和保留。
+## 安装
 
-## 快速安装
-
-### 方式一：让 Agent 安装
-
-把下面这段话发给支持 Skills 的 agent：
+请从这个路径安装主 skill：
 
 ```text
-请从这个 GitHub 地址安装 gongwen-format-converter skill：
-https://github.com/danxiaozhiren/gongwen-format-converter-skill/tree/main/skills/gongwen-format-converter
+https://github.com/danxiaozhiren/gongwen-format-converter-skill/tree/main/skills/format-xingwen-word
 ```
 
-安装完成后，重启 Codex / TRAE / 你的 agent 环境，让新 Skill 被重新发现。
-
-### 方式二：手动下载安装
-
-下载或克隆本仓库，然后把这个目录：
+本地安装目录示例：
 
 ```text
-skills/gongwen-format-converter
+Windows: %USERPROFILE%\.codex\skills\format-xingwen-word
+macOS/Linux: ~/.codex/skills/format-xingwen-word
 ```
 
-复制到本地 skills 目录。常见位置：
+使用时触发：
 
 ```text
-Windows: %USERPROFILE%\.codex\skills\gongwen-format-converter
-macOS/Linux: ~/.codex/skills/gongwen-format-converter
+$format-xingwen-word
 ```
 
-复制后，目标目录下应能直接看到：
+最省事的说法：
 
 ```text
-SKILL.md
-agents/
-evals/
-references/
-scripts/
+这份 Word 帮我处理一下，内容不要改。
 ```
 
-然后重启 agent。
-
-## 快速开始
-
-安装后，建议在请求里显式点名 Skill：
+如果说法比较模糊，skill 会先用很短的问题把范围说清楚：
 
 ```text
-$gongwen-format-converter
+我可以做两件事，都会保持正文不改：
+1. 现文格式化：生成整理后的 .docx。
+2. 现文格式诊断：只生成报告，不改 Word。
 
-模式：现文格式化
-输入文件：D:\path\材料.docx
-预设：默认行文检查版式
-要求：内容不要改、不补写、不润色，只调整已有内容和对象的格式，并给出覆盖报告。
+当前我已准备处理已有 .docx。下一步请选择 1 或 2；如果要加页码或规范表格，请一并说明。
 ```
 
-常用请求示例：
+交互原则是让用户始终知道三件事：这个 skill 能做什么、当前处在哪一步、下一步会做什么。用户明确要求“整理成 Word/生成新文件”时会直接格式化；明确说“先诊断/只检查”时只生成诊断报告。
 
-```text
-$gongwen-format-converter
+## 能做什么
 
-这个 docx 内容已经定稿了，只帮我按默认行文检查版式调格式，不要改正文，不要补缺失要素。
+- 处理已有 `.docx`。
+- 按固定行文检查版式设置 A4、页边距、文档网格参考、标题、正文、四级标题、行距、缩进、中文字体、西文字体。
+- 诊断 `.docx` 当前页面、段落、角色、表格、页眉页脚、页码字段、图片/对象、批注/修订/域等状态。
+- 保留正文和表格文本顺序，失败时拦截输出并返回非零退出码。
+- 格式化已有页码字段。
+- 在用户明确要求时用 `--add-page-numbers` 添加页码。
+- 在用户明确要求时用 `--format-tables` 规范表格结构。
+
+## 固定版式
+
+默认规则来自“行文出手前对照检查事项”：
+
+- 页面：A4；上 3.7 cm，下 3.5 cm，左 2.7 cm，右 2.7 cm。
+- 网格参考：每页 22 行，每行 28 字；版心参考 156 mm x 225 mm。
+- 大标题：方正小标宋简体，二号，不加粗；多行标题固定 36 磅。
+- 正文：仿宋_GB2312，三号，不加粗，固定 30 磅。
+- 一级标题：黑体，三号，不加粗，序号 `一、`。
+- 二级标题：楷体_GB2312，三号，加粗，序号 `（一）`。
+- 三级标题：仿宋_GB2312，三号，不加粗，序号 `1.`。
+- 四级标题：仿宋_GB2312，三号，不加粗，序号 `（1）`。
+- 数字和字母：Times New Roman。
+- 页码：宋体，四号。
+
+严格的 22 行/28 字视觉效果仍需在 Word/WPS 中打开确认；脚本写入的是 Word 网格和段落格式参考，不承诺跨渲染器完全一致。
+
+## 不会做什么
+
+- 不处理 Markdown、`.txt`、粘贴纯文本或 stdin 转 Word。
+- 不做模板复制、模板样式提取或范文内容回显。
+- 不批量处理多个文件。
+- 不生成红头、版头红线、发文字号位置、签发人、署名、日期、印章、抄送、版记等缺失公文要素。
+- 不解析 Markdown 表格或把 `**bold**`、`_italic_` 等标记映射为 Word 富文本。
+- 不做 OCR、PDF 转 Word 或扫描图片识别。
+
+## 命令行
+
+安装依赖：
+
+```bash
+python -m pip install -r skills/format-xingwen-word/scripts/requirements.txt
 ```
 
-```text
-$gongwen-format-converter
+格式化已有 Word：
 
-先不要改文档，帮我诊断这份材料当前的页面、标题、正文、行距、缩进、表格、图片、页眉页脚和样式问题。
-```
-
-```text
-$gongwen-format-converter
-
-参考这份模板的格式，套到目标文档上。只学习模板样式，不复制模板正文，也不补目标文档缺失内容。请先给出模板覆盖情况。
-```
-
-## 它会做什么
-
-- 按默认行文检查版式调整已有内容的 Word 版式：页面、页边距、版心、文档网格、字体、字号、颜色、行距、缩进、段前段后、标题层级等。
-- 识别并处理已有段落角色：标题、主送机关、正文、附件说明、落款、日期、附注、抄送、版记等。
-- 处理已有表格中的文字格式；在用户明确要求时，可进一步规范表格宽度、边框、单元格边距、垂直居中和跨页表头。
-- 诊断图片、印章、文本框、形状、页眉页脚、页码、批注、修订、域代码等对象和特殊状态；对高风险对象默认不主动重写。
-- 输出 `.docx`，并可生成 JSON 报告，说明文本是否保持不变、哪些格式已处理、哪些被保留、哪些需要人工确认。
-
-## 它不会默认做什么
-
-- 不改写、不润色、不总结、不删减正文。
-- 不调整原有段落顺序。
-- 不自动补写主送机关、发文字号、发文机关、签发人、附件名称、落款、日期、印章、抄送机关、印发机关、版记等缺失要素。
-- 不把手写编号 `一、`、`（一）`、`1.` 强行改成 Word 自动编号。
-- 不移动、缩放或重排图片、印章、文本框、复杂形状，除非用户明确要求。
-- 不联网处理用户文档正文。
-
-## 三种模式
-
-| 模式 | 适合场景 | 输出 |
-| --- | --- | --- |
-| 现文格式化 | 内容已定稿，只需要调 Word 格式 | 格式化后的 `.docx` 和覆盖报告 |
-| 现文格式诊断 | 先检查格式问题，不改文件 | 覆盖诊断报告 |
-| 现文模板套用 | 用一份模板/范文的格式套到目标文档 | 先输出模板覆盖分析，确认后再生成目标 `.docx` |
-
-如果用户只给了一份材料但没有说清楚要做什么，Skill 应该先询问选择哪种模式。
-
-## 格式参考依据
-
-正式公文格式优先参考以下官方规范：
-
-- 《党政机关公文处理工作条例》（中共中央办公厅、国务院办公厅，中办发〔2012〕14号）
-  - 中国政府网：<https://www.gov.cn/zwgk/2013-02/22/content_2337704.htm>
-- `GB/T 9704-2012`《党政机关公文格式》
-  - 全国标准信息公共服务平台：<https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=F3CC9BEF482524C895FDA7A08BB4A70E>
-  - 该平台显示标准状态为“现行”，发布日期为 `2012-06-29`，实施日期为 `2012-07-01`。
-
-这个 Skill 的默认预设就是 `formal`，采用“行文出手前对照检查事项”版式，并结合正式公文排版习惯转化为可执行的 Word 格式处理规则，例如：
-
-- A4 纸张，上 3.7cm、下 3.5cm、左 2.7cm、右 2.7cm 页边距，22 行/页、28 字/行作为 Word 文档网格参考。
-- 大标题为方正小标宋简体二号不加粗、居中；多行标题自动设置 36 磅固定行距，标题换行平衡需保留已有换行或结合模板/人工确认。
-- 正文为仿宋_GB2312 三号不加粗，全文固定行距 30 磅；大标题多行时固定行距 36 磅，大标题与正文间隔按一行三号字处理。
-- 一级标题黑体三号不加粗，二级标题楷体_GB2312 三号加粗，三级/四级标题仿宋_GB2312 三号不加粗。
-- 数字和字母使用 Times New Roman；页码使用宋体四号字。
-- 页眉页脚、页码、表格、图片对象和特殊状态按安全范围诊断、保留或格式化。
-
-注意：官方规范和默认行文检查版式都只用于判断“已有元素应该如何排版”，不是用来让 Skill 自动补写缺失元素。实际单位模板、地方细则或用户给定模板与默认模板不一致时，优先按用户提供的模板和明确要求处理，并在报告中说明。
-
-## 格式覆盖范围
-
-详细状态矩阵见 [`docs/word-format-coverage.md`](docs/word-format-coverage.md)。当前项目的定位是“常见行文/内部文档 Word 安全格式整理”，不是 Word 全对象、全样式、全视觉效果的完整处理。
-
-| 类型 | 当前处理方式 |
-| --- | --- |
-| 页面级格式 | 自动处理 A4、页边距、版心、文档网格、页眉页脚距离等安全项 |
-| 段落级格式 | 自动处理对齐、缩进、固定行距、段前段后、孤行控制、大纲级别、分页控制等 |
-| 文字级格式 | 自动处理中文/西文字体、字号、颜色、加粗、斜体、下划线、上下标、字符间距等可识别项 |
-| 已有公文元素 | 只对已存在的标题、正文、附件、落款、日期、版记等做格式处理 |
-| 页码 | 默认只诊断/格式化已有 PAGE 字段；明确要求时才添加页码 |
-| 表格 | 默认处理表内文字并诊断结构；明确要求时才规范表格结构 |
-| 图片和对象 | 默认诊断并保留，避免误动印章、图片、文本框、形状 |
-| 特殊状态 | 批注、修订、目录、复杂域、脚注尾注、书签等默认诊断并保留 |
-| 渲染级校验 | 当前不做 PDF/截图级视觉比对，最终显示仍需用 Word/WPS 人工确认 |
-
-## 报告说明
-
-报告重点看这几项：
-
-- `summary`：面向 agent 的顶层摘要，说明整体状态、格式来源、输出文件、内容保持状态、已格式化/已保留/仅诊断范围、需人工确认数量、网格参考说明和下一步建议。
-- `content_preservation`：正文、表格、页眉页脚、文本框、批注、脚注和尾注文本是否保持不变。
-- `coverage`：哪些范围已格式化、已保留、仅诊断、未检测、暂不支持或需要人工确认。
-- `format_changes.page`：页面、版心、文档网格等页面级格式处理前后的变化。
-- `format_changes.paragraph_controls`：分页控制、大纲级别、制表位、编号/项目符号等段落控制项的变化；诊断报告还会列出 Word 自动编号的 `num_id`、层级分布，以及手写编号的层级分布和跳变提示。
-- `format_diagnostics.special_state.field_diagnostics`：字段类型和类别统计，例如 `TOC`、`PAGE`、`NUMPAGES`、`DATE`、`REF`、`PAGEREF`；默认只报告类型、类别和指令哈希，不输出完整字段指令。
-- `format_diagnostics.special_state.field_update_risks`：字段更新风险提示，例如目录、页码、日期和交叉引用在格式化后可能需要到 Word/WPS 中更新域。
-
-报告默认不输出完整正文，避免泄露内部材料内容。
-
-说明：22 行/页、28 字/行会作为文档网格和版心参考写入报告和 `.docx`，但最终视觉效果仍受 Word/WPS、字体和兼容设置影响；严格场景需要打开成品文件做最终确认。
-
-## 高级用法
-
-脚本依赖 `python-docx`。如需直接运行脚本，可先安装依赖：
-
-```powershell
-python -m pip install -r skills\gongwen-format-converter\scripts\requirements.txt
-```
-
-格式化文档（不传 `--preset` 时默认使用行文检查版式）：
-
-```powershell
-python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料.docx `
-  --output D:\path\材料_格式化.docx `
+```bash
+python skills/format-xingwen-word/scripts/format_document.py input.docx \
+  --output output.docx \
   --report report.json
 ```
 
-只诊断，不生成新文档：
+只诊断，不生成 Word：
 
-```powershell
-python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料.docx `
-  --diagnose-only `
+```bash
+python skills/format-xingwen-word/scripts/format_document.py input.docx \
+  --diagnose-only \
   --report diagnostics.json
 ```
 
-明确要求添加页码时：
-
-```powershell
-python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料.docx `
-  --output D:\path\材料_带页码.docx `
-  --add-page-numbers `
-  --report report.json
-```
-
-明确要求规范表格结构时：
-
-```powershell
-python skills\gongwen-format-converter\scripts\format_document.py D:\path\材料.docx `
-  --output D:\path\材料_表格规范.docx `
-  --format-tables `
-  --report report.json
-```
-
-内部文档等非默认场景需要显式指定：
-
-```powershell
-python skills\gongwen-format-converter\scripts\format_document.py D:\path\内部材料.md `
-  --output D:\path\内部材料_格式化.docx `
-  --preset brief `
-  --report report.json
-```
-
-提取模板格式并分析目标文档覆盖情况：
-
-```powershell
-python skills\gongwen-format-converter\scripts\format_document.py `
-  --extract-template D:\path\模板.docx `
-  --target D:\path\新材料.docx `
-  --report template_profile.json
-```
-
-## 开发验证
-
-仓库包含一组可重新生成的最小 Word 样例，用于检查覆盖矩阵中的关键格式面：
+明确要求添加页码：
 
 ```bash
+python skills/format-xingwen-word/scripts/format_document.py input.docx \
+  --output numbered.docx \
+  --add-page-numbers \
+  --report report.json
+```
+
+明确要求规范表格结构：
+
+```bash
+python skills/format-xingwen-word/scripts/format_document.py input.docx \
+  --output table-normalized.docx \
+  --format-tables \
+  --report report.json
+```
+
+交互提示：
+
+- 非 `.docx` 输入会直接拒绝，并提示需要已有 Word 文件。
+- 损坏、加密或无法打开的 `.docx` 会给出明确错误，不会生成输出。
+- 成功报告里会包含 `summary.user_message`，包括 `can_do`、`current_state`、`next_action`，Agent 可直接用它向用户说明结果。
+- 内容保持校验失败时，候选文件会被删除，正式输出不会生成或覆盖。
+
+## 验证
+
+```bash
+make check
+make skill-validate
+make evals
+make coverage-matrix
+make golden-word
 make smoke-word
 make render-word
-make test
-make compile
 ```
 
-`make render-word` 是可选渲染 smoke check：需要本机安装 LibreOffice/OpenOffice，或通过 `WORD_RENDERER` 指定 `soffice` 路径；未检测到渲染器时会跳过。需要强制失败时使用 `make render-word-required`。
+`make render-word` 依赖 LibreOffice/OpenOffice；当前环境缺少渲染器或相关动态库时允许跳过。覆盖边界见 [`docs/word-format-coverage.md`](docs/word-format-coverage.md)。
 
-样例和说明见 [`tests/fixtures/README.md`](tests/fixtures/README.md)。
-
-## 当前限制
-
-- 当前项目不能宣称“完全处理 Word 格式”；复杂对象、完整样式继承和渲染一致性仍在覆盖矩阵中作为后续能力规划。
-- 图片、印章、浮动文本框、复杂形状、水印等对象目前以诊断和保留为主。
-- 批注、修订、复杂域、目录、脚注尾注、书签等特殊结构不会被自动重写。
-- Word 自动编号定义会被检测、保留并报告编号 ID 和层级分布，但不会默认重建编号体系。
-- 最终显示效果仍可能受本机字体影响，例如 `方正小标宋简体`、`仿宋_GB2312`、`楷体_GB2312` 是否安装。
-
-## Skill 目录
+## 项目结构
 
 ```text
-skills/gongwen-format-converter/
-```
-
-核心行为规则在：
-
-```text
-skills/gongwen-format-converter/SKILL.md
+skills/format-xingwen-word/
+  SKILL.md
+  agents/openai.yaml
+  scripts/format_document.py
+  references/checklist-format.md
+  references/role-detection.md
+  evals/evals.json
 ```

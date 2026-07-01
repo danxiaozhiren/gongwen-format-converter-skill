@@ -13,6 +13,11 @@ import sys
 from pathlib import Path
 
 try:
+    import pdfplumber
+except ModuleNotFoundError:
+    pdfplumber = None
+
+try:
     from .generate_word_samples import OUTPUT_DIR, generate_all
 except ImportError:
     from generate_word_samples import OUTPUT_DIR, generate_all
@@ -83,7 +88,19 @@ def render_pdf(renderer: Path, sample: Path, outdir: Path) -> Path:
     return output
 
 
-def validate_pdf(path: Path) -> dict[str, int | str]:
+def pdf_text_line_counts(path: Path) -> list[int]:
+    if pdfplumber is None:
+        return []
+    counts = []
+    with pdfplumber.open(str(path)) as pdf:
+        for page in pdf.pages:
+            text = page.extract_text() or ""
+            lines = [line for line in text.splitlines() if line.strip()]
+            counts.append(len(lines))
+    return counts
+
+
+def validate_pdf(path: Path) -> dict[str, int | str | list[int]]:
     data = path.read_bytes()
     if not data.startswith(b"%PDF"):
         raise RuntimeError(f"{path.name} is not a PDF")
@@ -92,7 +109,34 @@ def validate_pdf(path: Path) -> dict[str, int | str]:
     page_markers = len(PDF_PAGE_RE.findall(data))
     if page_markers < 1:
         raise RuntimeError(f"{path.name} has no detectable PDF page markers")
-    return {"file": path.name, "bytes": len(data), "page_markers": page_markers}
+    line_counts = pdf_text_line_counts(path)
+    if line_counts:
+        if not any(count > 0 for count in line_counts):
+            raise RuntimeError(f"{path.name} rendered without extractable text lines")
+        if any(count > 35 for count in line_counts):
+            raise RuntimeError(f"{path.name} has an unexpected rendered line count: {line_counts}")
+    return {
+        "file": path.name,
+        "bytes": len(data),
+        "page_markers": page_markers,
+        "text_line_counts": line_counts,
+        "layout_check": "pdfplumber" if pdfplumber is not None else "pdf-smoke-only",
+    }
+
+
+def renderer_bootstrap_failed(failures: list[str]) -> bool:
+    if not failures:
+        return False
+    failure_text = "\n".join(failures)
+    bootstrap_markers = [
+        "Library not loaded",
+        "cannot open shared object file",
+        "libfontconfig",
+        "dyld",
+    ]
+    return all(any(marker in failure for marker in bootstrap_markers) for failure in failures) and any(
+        marker in failure_text for marker in bootstrap_markers
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -129,6 +173,14 @@ def main() -> int:
             failures.append(f"{sample.name}: {exc}")
 
     if failures:
+        if not args.require_renderer and renderer_bootstrap_failed(failures):
+            print(
+                "SKIP: LibreOffice/OpenOffice renderer was found but cannot start in this environment. "
+                "Use make render-word-required to force this failure."
+            )
+            for failure in failures[:2]:
+                print(f"- {failure}")
+            return 0
         print("Word render smoke check failed:", file=sys.stderr)
         for failure in failures:
             print(f"- {failure}", file=sys.stderr)
@@ -136,6 +188,10 @@ def main() -> int:
 
     print(f"Rendered and checked {len(results)} Word fixtures with {renderer}")
     print(f"Rendered PDFs: {outdir}")
+    if pdfplumber is None:
+        print("PDF text-line checks skipped because pdfplumber is not installed.")
+    else:
+        print("PDF text-line checks: " + ", ".join(f"{row['file']}={row['text_line_counts']}" for row in results))
     return 0
 
 

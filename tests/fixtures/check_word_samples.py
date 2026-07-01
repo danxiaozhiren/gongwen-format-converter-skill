@@ -16,7 +16,7 @@ except ImportError:
 
 
 ROOT = Path(__file__).resolve().parents[2]
-FORMATTER = ROOT / "skills" / "gongwen-format-converter" / "scripts" / "format_document.py"
+FORMATTER = ROOT / "skills" / "format-xingwen-word" / "scripts" / "format_document.py"
 REPORT_DIR = Path("/private/tmp/gongwen-fixture-reports")
 
 
@@ -102,8 +102,6 @@ def run_diagnostics(sample: Path, report: Path) -> None:
             str(FORMATTER),
             str(sample),
             "--diagnose-only",
-            "--preset",
-            "formal",
             "--report",
             str(report),
         ],

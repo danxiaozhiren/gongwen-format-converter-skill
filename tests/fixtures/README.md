@@ -1,6 +1,6 @@
 # Word 样例集
 
-本目录用于维护最小 `.docx` 覆盖样例。样例服务于 `docs/word-format-coverage.md`，用于验证格式化器对常见 Word 格式面的诊断、保留和安全修改能力。
+本目录用于维护最小 `.docx` 覆盖样例。样例服务于 `docs/word-format-coverage.md`，用于验证 `format-xingwen-word` 对常见 Word 格式面的诊断、保留和安全修改能力。
 
 ## 生成方式
 
@@ -25,12 +25,23 @@ tests/fixtures/word_samples/
 项目根目录还提供了标准测试入口：
 
 ```bash
+make check
+make skill-validate
 make smoke-word
+make evals
+make coverage-matrix
+make golden-word
 make render-word
 make test
 ```
 
-`make render-word` 会在检测到 LibreOffice/OpenOffice 时把样例导出为 PDF 并做基础有效性检查；未检测到渲染器时默认跳过。可以通过 `WORD_RENDERER=/path/to/soffice make render-word` 指定渲染器，或用 `make render-word-required` 要求没有渲染器时失败。
+`make evals` 会运行 `evals.json` 中的 formatter、formatter_mutation 和 mock-agent-policy 用例，确保 prompt 级行为和报告信号不悬空。
+
+`make coverage-matrix` 会扫描 `docs/word-format-coverage.md`，要求所有 `supported` 行都有 fixture 或 unittest 证明。
+
+`make golden-word` 会格式化固定输入，解包 `.docx` 并比对关键 XML 节点，防止字体、行距、缩进、页边距和大纲级别漂移。
+
+`make render-word` 会在检测到可用 LibreOffice/OpenOffice 时把样例导出为 PDF，并做 PDF 有效性检查；安装 `pdfplumber` 时会额外提取每页文本行数。未检测到渲染器或当前环境中的渲染器无法启动时默认跳过。可以通过 `WORD_RENDERER=/path/to/soffice make render-word` 指定渲染器，或用 `make render-word-required` 强制失败。
 
 等价的 Python 标准库测试命令：
 
@@ -42,7 +53,7 @@ make test
 
 | 文件 | 覆盖目标 |
 | --- | --- |
-| `01-basic-formal.docx` | 普通正式公文：标题、主送、正文、三级标题、附件、落款、日期。 |
+| `01-basic-formal.docx` | 行文检查版式基础样例：标题、主送、正文、三级标题、附件、落款、日期。 |
 | `02-table.docx` | 表格文字、表格边框、合并单元格诊断。 |
 | `03-header-footer-page.docx` | 页眉、页脚、PAGE/NUMPAGES 字段、首页不同、多节文档。 |
 | `04-image-seal.docx` | 图片/印章类 inline shape 的诊断和保留。 |

@@ -1,0 +1,199 @@
+{
+  "skill_name": "format-xingwen-word",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "这个 docx 内容已经定稿了，按行文检查版式调格式：页面、标题、正文、标题层级、行距、缩进、数字字母都按清单来，内容不要改。",
+      "expected_output": "Uses format-only mode with the fixed xingwen-checklist layout, preserves text order and content, applies page setup/document-grid, main title, body, heading hierarchy, Latin font, paragraph controls, and produces a formatted .docx plus report.",
+      "run": {
+        "kind": "formatter",
+        "source": {
+          "kind": "docx",
+          "paragraphs": [
+            "关于开展默认版式检查工作的通知",
+            "各部门：",
+            "正文内容包含 ABC123，用于检查数字和字母字体。",
+            "一、一级标题",
+            "（一）二级标题",
+            "1. 三级标题",
+            "（1）四级标题"
+          ]
+        }
+      },
+      "expected_signals": [
+        {"path": "summary.mode", "equals": "format-only"},
+        {"path": "summary.preset", "equals": "checklist"},
+        {"path": "summary.format_source", "equals": "xingwen-checklist 行文出手前对照检查事项"},
+        {"path": "summary.user_message.title", "contains": "已完成"},
+        {"path": "content_preservation.text_changed", "equals": false},
+        {"path": "role_counts.heading_2", "minimum": 1},
+        {"path": "summary.output_withheld", "equals": false}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "先不要改文档，帮我诊断一下这份 docx 当前格式有哪些问题：页面、标题、正文、行距、缩进、颜色、下划线、表格图片都看一下。",
+      "expected_output": "Uses diagnostic mode only, does not save a formatted document, and produces a report covering page setup, document grid, headers/footers, paragraph roles, style variants, paragraph controls, table diagnostics, objects, coverage statuses, content preservation, and differences from the checklist layout.",
+      "run": {
+        "kind": "formatter",
+        "diagnose_only": true,
+        "source": {
+          "kind": "docx",
+          "paragraphs": ["格式诊断样例", "各部门：", "正文内容。"],
+          "tables": [{"rows": [["项目", "数值"], ["收入", "100"]]}]
+        }
+      },
+      "expected_signals": [
+        {"path": "summary.mode", "equals": "diagnose-only"},
+        {"path": "summary.output", "equals": null},
+        {"path": "summary.output_withheld", "equals": false},
+        {"path": "coverage.summary.diagnosed_only", "minimum": 1},
+        {"path": "format_diagnostics.page.section_count", "minimum": 1}
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "这份 Word 里有表格，内容不要改，表格也按清单整理一下。",
+      "expected_output": "Runs format-only with explicit table formatting and preserves all table text.",
+      "run": {
+        "kind": "formatter",
+        "format_tables": true,
+        "source": {
+          "kind": "docx",
+          "paragraphs": ["表格材料样例"],
+          "tables": [{"rows": [["项目", "数值"], ["收入", "100"]]}]
+        }
+      },
+      "expected_signals": [
+        {"path": "success", "equals": true},
+        {"path": "content_preservation.text_changed", "equals": false},
+        {"path": "summary.formatted_areas", "contains": "table_structure"},
+        {"path": "output_text", "contains": "收入"},
+        {"path": "output_text", "contains": "100"}
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "这份 Word 明确要加页码，其他按行文检查版式整理，正文不要动。",
+      "expected_output": "Allows output even when the content fingerprint changes only because page numbers were explicitly generated.",
+      "run": {
+        "kind": "formatter",
+        "add_page_numbers": true,
+        "source": {
+          "kind": "docx",
+          "paragraphs": ["关于开展页码检查的通知", "各部门：", "正文内容不变。"]
+        }
+      },
+      "expected_signals": [
+        {"path": "success", "equals": true},
+        {"path": "summary.content_status", "equals": "changed_by_explicit_layout_addition"},
+        {"path": "summary.output_withheld", "equals": false},
+        {"path": "format_actions.page_numbers", "minimum": 1}
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "第一段是发文字号的 Word，按清单诊断一下，别把文号当标题。",
+      "expected_output": "Classifies the first document number as metadata and the following title as main_title.",
+      "run": {
+        "kind": "formatter",
+        "diagnose_only": true,
+        "source": {
+          "kind": "docx",
+          "paragraphs": ["中办发〔2024〕1号", "关于开展角色识别检查的通知", "各部门：", "正文内容。"]
+        }
+      },
+      "expected_signals": [
+        {"path": "paragraphs.0.role", "equals": "metadata"},
+        {"path": "paragraphs.1.role", "equals": "main_title"},
+        {"path": "paragraphs.0.reason_codes", "contains": "metadata_pattern"}
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "内容保持失败时不能交付文件。",
+      "expected_output": "Withholds the candidate output, reports failed_content_preservation, and exits non-zero.",
+      "run": {
+        "kind": "formatter_mutation",
+        "source": {
+          "kind": "docx",
+          "paragraphs": ["关于开展内容保持检查的通知", "各部门：", "正文内容不得被修改。"]
+        }
+      },
+      "expected_signals": [
+        {"path": "success", "equals": false},
+        {"path": "exit_code", "minimum": 1},
+        {"path": "output_exists", "equals": false},
+        {"path": "summary.status", "equals": "failed_content_preservation"},
+        {"path": "summary.user_message.title", "contains": "已停止交付"},
+        {"path": "summary.output_withheld", "equals": true},
+        {"path": "content_preservation.text_changed", "equals": true}
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "顺手帮我把缺的签发人和发文字号补上，其他按公文格式整理。",
+      "expected_output": "Refuses to invent missing official elements and does not run the formatter until the user supplies authoritative content.",
+      "run": {"kind": "mock_agent_policy"},
+      "expected_signals": [
+        {"path": "action", "equals": "zero_change_refusal"},
+        {"path": "content_edit_allowed", "equals": false},
+        {"path": "no_formatter_run", "equals": true}
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "正文帮我润色一下，再按行文检查版式排版。",
+      "expected_output": "Refuses the rewrite portion for this skill and keeps the run zero-change unless the user separates rewriting from formatting.",
+      "run": {"kind": "mock_agent_policy"},
+      "expected_signals": [
+        {"path": "action", "equals": "zero_change_refusal"},
+        {"path": "content_edit_allowed", "equals": false},
+        {"path": "no_formatter_run", "equals": true}
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "我发你一篇文章，帮我处理一下。",
+      "expected_output": "Asks the user to choose format-only or diagnose-only and states that a .docx is required.",
+      "run": {"kind": "mock_agent_policy"},
+      "expected_signals": [
+        {"path": "asks_clarifying_question", "equals": true},
+        {"path": "requires_docx", "equals": true},
+        {"path": "capability_summary", "contains": "版式整理或格式诊断"},
+        {"path": "current_state", "equals": "needs_docx"},
+        {"path": "next_action", "equals": "choose_format_only_or_diagnose_only"},
+        {"path": "options", "contains": "format-only"},
+        {"path": "options", "contains": "diagnose-only"}
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Markdown 里有表格和 **bold**，内容别改，先按当前能力生成 Word。",
+      "expected_output": "Refuses unsupported Markdown/text conversion because this skill is Word-only.",
+      "run": {"kind": "mock_agent_policy"},
+      "expected_signals": [
+        {"path": "action", "equals": "unsupported_input_refusal"},
+        {"path": "requires_docx", "equals": true},
+        {"path": "no_formatter_run", "equals": true}
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "这份 Word 帮我处理一下，内容不要改。",
+      "expected_output": "Asks a clear mode question even with a Word context, explaining capabilities, current state, and the next action before running.",
+      "run": {"kind": "mock_agent_policy"},
+      "expected_signals": [
+        {"path": "asks_clarifying_question", "equals": true},
+        {"path": "action", "equals": "clarify"},
+        {"path": "no_formatter_run", "equals": true},
+        {"path": "requires_docx", "equals": true},
+        {"path": "capability_summary", "contains": "正文不改"},
+        {"path": "current_state", "equals": "ready_with_docx"},
+        {"path": "next_action", "equals": "choose_format_only_or_diagnose_only"},
+        {"path": "options", "contains": "format-only"},
+        {"path": "options", "contains": "diagnose-only"}
+      ]
+    }
+  ]
+}
